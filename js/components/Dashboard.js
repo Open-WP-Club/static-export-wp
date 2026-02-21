@@ -115,6 +115,15 @@ export default function Dashboard( { onNavigate } ) {
 								</>
 							) }
 						</dl>
+						{ ( status.status === 'completed' || status.status === 'failed' ) && window.sewpConfig?.downloadUrl && (
+							<Button
+								variant="secondary"
+								href={ window.sewpConfig.downloadUrl }
+								className="sewp-dashboard__download"
+							>
+								{ __( 'Download ZIP', 'static-export-wp' ) }
+							</Button>
+						) }
 					</CardBody>
 				</Card>
 			) }

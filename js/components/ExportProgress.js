@@ -12,6 +12,7 @@ export default function ExportProgress() {
 	const { status, refresh } = useExportStatus( true );
 
 	const isRunning = status?.status === 'running';
+	const isCompleted = status?.status === 'completed' || status?.status === 'failed';
 	const isIdle = ! status || status.status === 'idle';
 	const total = status?.total || 0;
 	const completed = status?.completed || 0;
@@ -141,6 +142,14 @@ export default function ExportProgress() {
 										>
 											{ __( 'New Export', 'static-export-wp' ) }
 										</Button>
+										{ isCompleted && window.sewpConfig?.downloadUrl && (
+											<Button
+												variant="secondary"
+												href={ window.sewpConfig.downloadUrl }
+											>
+												{ __( 'Download ZIP', 'static-export-wp' ) }
+											</Button>
+										) }
 										<Button
 											variant="secondary"
 											isDestructive
