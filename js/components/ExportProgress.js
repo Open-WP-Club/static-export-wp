@@ -150,6 +150,16 @@ export default function ExportProgress() {
 												{ __( 'Download ZIP', 'static-export-wp' ) }
 											</Button>
 										) }
+										{ isCompleted && window.sewpConfig?.previewUrl && (
+											<Button
+												variant="secondary"
+												href={ window.sewpConfig.previewUrl }
+												target="_blank"
+												rel="noopener noreferrer"
+											>
+												{ __( 'Preview Site', 'static-export-wp' ) }
+											</Button>
+										) }
 										<Button
 											variant="secondary"
 											isDestructive

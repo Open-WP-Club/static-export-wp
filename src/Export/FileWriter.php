@@ -55,6 +55,11 @@ final class FileWriter {
 			return false;
 		}
 
+		// Never copy PHP files into static output.
+		if ( str_ends_with( strtolower( $relative_path ), '.php' ) ) {
+			return false;
+		}
+
 		$full_path = $this->path_helper->safe_path( $output_dir, $relative_path );
 
 		if ( false === $full_path ) {

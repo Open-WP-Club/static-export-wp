@@ -64,6 +64,7 @@ final class AdminPage {
 			'version'     => SEWP_VERSION,
 			'adminUrl'    => admin_url(),
 			'downloadUrl' => wp_nonce_url( admin_url( 'admin-post.php?action=sewp_download_export' ), 'sewp_download_export' ),
+			'previewUrl'  => $this->get_preview_url(),
 		] );
 	}
 
@@ -101,6 +102,29 @@ final class AdminPage {
 		readfile( $zip_path );
 		unlink( $zip_path );
 		exit;
+	}
+
+	/**
+	 * Map output_dir to a web-accessible URL if it's under the uploads directory.
+	 */
+	private function get_preview_url(): string {
+		$settings   = \StaticExportWP\Core\Plugin::instance()->settings();
+		$output_dir = rtrim( $settings->get( 'output_dir', '' ), '/' );
+
+		if ( '' === $output_dir ) {
+			return '';
+		}
+
+		$upload_dir = wp_upload_dir();
+		$basedir    = rtrim( $upload_dir['basedir'], '/' );
+		$baseurl    = rtrim( $upload_dir['baseurl'], '/' );
+
+		if ( str_starts_with( $output_dir, $basedir ) ) {
+			$relative = substr( $output_dir, strlen( $basedir ) );
+			return $baseurl . $relative . '/';
+		}
+
+		return '';
 	}
 
 	/**

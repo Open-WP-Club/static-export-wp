@@ -149,6 +149,20 @@ final class HtmlProcessor {
 				continue;
 			}
 
+			// Skip WordPress backend and PHP URLs.
+			$path = wp_parse_url( $href, PHP_URL_PATH ) ?? '';
+			if (
+				str_contains( $path, '/wp-admin' )
+				|| str_contains( $path, '/wp-login.php' )
+				|| str_contains( $path, '/wp-cron.php' )
+				|| str_contains( $path, '/wp-json' )
+				|| str_contains( $path, '/xmlrpc.php' )
+				|| str_contains( $path, '/feed' )
+				|| str_ends_with( strtolower( $path ), '.php' )
+			) {
+				continue;
+			}
+
 			// Strip fragment.
 			$href = strtok( $href, '#' ) ?: $href;
 

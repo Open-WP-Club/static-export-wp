@@ -115,14 +115,28 @@ export default function Dashboard( { onNavigate } ) {
 								</>
 							) }
 						</dl>
-						{ ( status.status === 'completed' || status.status === 'failed' ) && window.sewpConfig?.downloadUrl && (
-							<Button
-								variant="secondary"
-								href={ window.sewpConfig.downloadUrl }
-								className="sewp-dashboard__download"
-							>
-								{ __( 'Download ZIP', 'static-export-wp' ) }
-							</Button>
+						{ ( status.status === 'completed' || status.status === 'failed' ) && (
+							<div className="sewp-dashboard__post-export">
+								{ window.sewpConfig?.downloadUrl && (
+									<Button
+										variant="secondary"
+										href={ window.sewpConfig.downloadUrl }
+										className="sewp-dashboard__download"
+									>
+										{ __( 'Download ZIP', 'static-export-wp' ) }
+									</Button>
+								) }
+								{ window.sewpConfig?.previewUrl && (
+									<Button
+										variant="secondary"
+										href={ window.sewpConfig.previewUrl }
+										target="_blank"
+										rel="noopener noreferrer"
+									>
+										{ __( 'Preview Site', 'static-export-wp' ) }
+									</Button>
+								) }
+							</div>
 						) }
 					</CardBody>
 				</Card>

@@ -15,6 +15,8 @@ final class Settings {
 			'output_dir'       => trailingslashit( $upload_dir['basedir'] ) . 'static-export',
 			'url_mode'         => 'relative',
 			'base_url'         => '',
+			'export_mode'      => 'full',
+			'selected_urls'    => [],
 			'post_types'       => [ 'post', 'page' ],
 			'rate_limit'       => 50,
 			'batch_size'       => 10,
@@ -22,6 +24,13 @@ final class Settings {
 			'timeout'          => 30,
 			'extra_urls'       => [],
 			'exclude_patterns' => [],
+			'deploy_method'    => 'none',
+			'deploy_command'   => '',
+			'notify_enabled'   => false,
+			'notify_email'     => '',
+			'pagination_depth'   => 0,
+			'incremental_export' => false,
+			'pagefind_enabled' => false,
 		];
 	}
 
@@ -50,6 +59,13 @@ final class Settings {
 				? $values['url_mode']
 				: 'relative',
 			'base_url'         => esc_url_raw( $values['base_url'] ?? '' ),
+			'export_mode'      => in_array( $values['export_mode'] ?? '', [ 'full', 'selective' ], true )
+				? $values['export_mode']
+				: 'full',
+			'selected_urls'    => array_values( array_filter( array_map(
+				'esc_url_raw',
+				(array) ( $values['selected_urls'] ?? [] )
+			) ) ),
 			'post_types'       => array_map( 'sanitize_key', (array) ( $values['post_types'] ?? $defaults['post_types'] ) ),
 			'rate_limit'       => max( 0, (int) ( $values['rate_limit'] ?? $defaults['rate_limit'] ) ),
 			'batch_size'       => max( 1, min( 100, (int) ( $values['batch_size'] ?? $defaults['batch_size'] ) ) ),
@@ -63,6 +79,15 @@ final class Settings {
 				'sanitize_text_field',
 				(array) ( $values['exclude_patterns'] ?? [] )
 			) ) ),
+			'deploy_method'    => in_array( $values['deploy_method'] ?? '', [ 'none', 'command' ], true )
+				? $values['deploy_method']
+				: 'none',
+			'deploy_command'   => sanitize_text_field( $values['deploy_command'] ?? '' ),
+			'notify_enabled'   => (bool) ( $values['notify_enabled'] ?? false ),
+			'notify_email'     => sanitize_email( $values['notify_email'] ?? '' ),
+			'pagination_depth'   => max( 0, (int) ( $values['pagination_depth'] ?? 0 ) ),
+			'incremental_export' => (bool) ( $values['incremental_export'] ?? false ),
+			'pagefind_enabled' => (bool) ( $values['pagefind_enabled'] ?? false ),
 		];
 	}
 }

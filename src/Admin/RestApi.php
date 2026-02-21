@@ -79,6 +79,23 @@ final class RestApi {
 			'permission_callback' => [ $this, 'check_permissions' ],
 		] );
 
+		// Post types.
+		register_rest_route( self::NAMESPACE, '/post-types', [
+			'methods'             => \WP_REST_Server::READABLE,
+			'callback'            => function () {
+				$types = get_post_types( [ 'public' => true ], 'objects' );
+				$result = [];
+				foreach ( $types as $type ) {
+					$result[] = [
+						'name'  => $type->name,
+						'label' => $type->label,
+					];
+				}
+				return new \WP_REST_Response( $result );
+			},
+			'permission_callback' => [ $this, 'check_permissions' ],
+		] );
+
 		// Export log.
 		register_rest_route( self::NAMESPACE, '/export/log', [
 			'methods'             => \WP_REST_Server::READABLE,

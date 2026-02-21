@@ -18,6 +18,17 @@ final class UrlDiscovery {
 	 * @return string[] Array of absolute URLs.
 	 */
 	public function discover(): array {
+		$export_mode = $this->settings->get( 'export_mode', 'full' );
+
+		// Selective mode: only export specific URLs.
+		if ( 'selective' === $export_mode ) {
+			$selected = $this->settings->get( 'selected_urls', [] );
+			if ( ! empty( $selected ) ) {
+				/** This filter is documented below. */
+				return apply_filters( 'sewp_discovered_urls', $selected );
+			}
+		}
+
 		$urls = [];
 
 		$urls[] = home_url( '/' );

@@ -6,15 +6,16 @@ namespace StaticExportWP\Core;
 
 final class Schema {
 
-	public const DB_VERSION = '1.0.0';
+	public const DB_VERSION = '1.1.0';
 
 	public static function create_tables(): void {
 		global $wpdb;
 
 		$charset_collate = $wpdb->get_charset_collate();
 
-		$crawl_queue_table = $wpdb->prefix . 'sewp_crawl_queue';
-		$export_log_table  = $wpdb->prefix . 'sewp_export_log';
+		$crawl_queue_table    = $wpdb->prefix . 'sewp_crawl_queue';
+		$export_log_table     = $wpdb->prefix . 'sewp_export_log';
+		$content_hashes_table = $wpdb->prefix . 'sewp_content_hashes';
 
 		$sql = "CREATE TABLE {$crawl_queue_table} (
 			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
@@ -49,6 +50,18 @@ final class Schema {
 			settings_snapshot longtext DEFAULT NULL,
 			PRIMARY KEY  (id),
 			UNIQUE KEY export_id (export_id)
+		) {$charset_collate};
+
+		CREATE TABLE {$content_hashes_table} (
+			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+			url_hash varchar(64) NOT NULL,
+			url text NOT NULL,
+			content_hash varchar(64) NOT NULL,
+			output_path text DEFAULT NULL,
+			last_export_id varchar(36) DEFAULT NULL,
+			updated_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY  (id),
+			UNIQUE KEY url_hash (url_hash)
 		) {$charset_collate};";
 
 		require_once ABSPATH . 'wp-admin/includes/upgrade.php';

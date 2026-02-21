@@ -41,6 +41,10 @@ export const api = {
 		return apiFetch( { path: `${ BASE }/export/discover-urls` } );
 	},
 
+	getPostTypes() {
+		return apiFetch( { path: `${ BASE }/post-types` } );
+	},
+
 	cleanExport() {
 		return apiFetch( {
 			path: `${ BASE }/export/clean`,
