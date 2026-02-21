@@ -148,7 +148,7 @@ final class CrawlQueue {
 			$counts[ $row->status ] = (int) $row->cnt;
 		}
 
-		$counts['total'] = array_sum( $counts ) - ( $counts['total'] ?? 0 );
+		$counts['total'] = $counts['pending'] + $counts['processing'] + $counts['completed'] + $counts['failed'];
 
 		return $counts;
 	}

@@ -77,16 +77,11 @@ final class Plugin {
 		if ( is_admin() ) {
 			$admin_page = new AdminPage();
 			$admin_page->register();
-
-			$rest_api = new RestApi( $this->export_manager, $this->settings, $url_discovery, $progress_tracker );
-			add_action( 'rest_api_init', [ $rest_api, 'register_routes' ] );
 		}
 
-		// REST API must also be available for non-admin REST requests.
-		if ( ! is_admin() ) {
-			$rest_api = new RestApi( $this->export_manager, $this->settings, $url_discovery, $progress_tracker );
-			add_action( 'rest_api_init', [ $rest_api, 'register_routes' ] );
-		}
+		// REST API must be available for both admin and frontend REST requests.
+		$rest_api = new RestApi( $this->export_manager, $this->settings, $url_discovery, $progress_tracker );
+		add_action( 'rest_api_init', [ $rest_api, 'register_routes' ] );
 
 		if ( defined( 'WP_CLI' ) && WP_CLI ) {
 			\WP_CLI::add_command( 'static-export', new StaticExportCommand(

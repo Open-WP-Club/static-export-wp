@@ -29,7 +29,7 @@ final class PathHelper {
 		}
 
 		// Directory-like path: append index.html.
-		return trailingslashit( $path ) . 'index.html';
+		return rtrim( $path, '/' ) . '/index.html';
 	}
 
 	/**
