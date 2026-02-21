@@ -1,6 +1,6 @@
 import { useState, useEffect } from '@wordpress/element';
 import { Card, CardBody, CardHeader, Spinner, Button } from '@wordpress/components';
-import { __ } from '@wordpress/i18n';
+import { __, sprintf } from '@wordpress/i18n';
 import { api } from '../api';
 
 export default function ExportLog() {

@@ -1,6 +1,6 @@
 import { useState } from '@wordpress/element';
 import { Button, Card, CardBody, CardHeader, Notice } from '@wordpress/components';
-import { __ } from '@wordpress/i18n';
+import { __, sprintf } from '@wordpress/i18n';
 import { api } from '../api';
 import useExportStatus from '../hooks/useExportStatus';
 
