@@ -1,0 +1,191 @@
+/* Static Export WP Admin Styles */
+.sewp-admin {
+	max-width: 900px;
+	margin: 20px auto 0;
+}
+
+.sewp-header {
+	margin-bottom: 24px;
+}
+
+.sewp-header__title h1 {
+	font-size: 23px;
+	font-weight: 400;
+	margin: 0 0 12px;
+}
+
+.sewp-header__nav {
+	display: flex;
+	gap: 8px;
+	border-bottom: 1px solid #c3c4c7;
+	padding-bottom: 8px;
+}
+
+.sewp-header__tab {
+	text-decoration: none;
+}
+
+.sewp-admin__content {
+	margin-top: 16px;
+}
+
+/* Dashboard */
+.sewp-dashboard__actions {
+	display: flex;
+	gap: 12px;
+	align-items: center;
+	flex-wrap: wrap;
+}
+
+.sewp-dashboard__url-count {
+	margin-top: 12px;
+	color: #50575e;
+	font-style: italic;
+}
+
+.sewp-dashboard__status {
+	margin-top: 16px;
+}
+
+.sewp-dashboard__status-grid {
+	display: grid;
+	grid-template-columns: 120px 1fr;
+	gap: 4px 12px;
+	margin: 0;
+}
+
+.sewp-dashboard__status-grid dt {
+	font-weight: 600;
+	color: #50575e;
+}
+
+/* Export Progress */
+.sewp-export__bar-wrapper {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	margin-bottom: 16px;
+}
+
+.sewp-export__bar {
+	flex: 1;
+	height: 24px;
+	background: #e0e0e0;
+	border-radius: 4px;
+	overflow: hidden;
+}
+
+.sewp-export__bar-fill {
+	height: 100%;
+	background: #2271b1;
+	transition: width 0.3s ease;
+	border-radius: 4px;
+}
+
+.sewp-export__percent {
+	font-weight: 600;
+	min-width: 48px;
+	text-align: right;
+}
+
+.sewp-export__stats {
+	display: grid;
+	grid-template-columns: 100px 1fr;
+	gap: 4px 12px;
+	margin: 0 0 16px;
+}
+
+.sewp-export__stats dt {
+	font-weight: 600;
+	color: #50575e;
+}
+
+.sewp-export__current-url {
+	word-break: break-all;
+	font-family: monospace;
+	font-size: 12px;
+}
+
+.sewp-export__actions {
+	display: flex;
+	gap: 12px;
+	margin-top: 16px;
+}
+
+.sewp-export__idle {
+	text-align: center;
+	padding: 24px 0;
+}
+
+.sewp-export__idle p {
+	margin-bottom: 16px;
+	color: #50575e;
+}
+
+/* Settings */
+.sewp-settings .components-base-control {
+	margin-bottom: 16px;
+}
+
+.sewp-settings__actions {
+	margin-top: 24px;
+	padding-top: 16px;
+	border-top: 1px solid #e0e0e0;
+}
+
+/* Export Log */
+.sewp-log__table {
+	width: 100%;
+}
+
+.sewp-log__table code {
+	font-size: 12px;
+}
+
+.sewp-log__pagination {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 16px;
+	margin-top: 16px;
+}
+
+/* Status badges */
+.sewp-status {
+	display: inline-block;
+	padding: 2px 8px;
+	border-radius: 3px;
+	font-size: 12px;
+	font-weight: 600;
+	text-transform: uppercase;
+}
+
+.sewp-status--running {
+	background: #e6f0ff;
+	color: #2271b1;
+}
+
+.sewp-status--completed {
+	background: #e6f6e6;
+	color: #008a20;
+}
+
+.sewp-status--failed {
+	background: #fce6e6;
+	color: #d63638;
+}
+
+.sewp-status--cancelled {
+	background: #f0f0f0;
+	color: #50575e;
+}
+
+.sewp-status--pending {
+	background: #fff8e5;
+	color: #996800;
+}
+
+.sewp-status--idle {
+	background: #f0f0f0;
+	color: #50575e;
+}
