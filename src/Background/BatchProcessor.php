@@ -42,22 +42,18 @@ final class BatchProcessor {
 			return;
 		}
 
-		foreach ( $batch as $queue_item ) {
-			// Re-check cancellation between items.
-			if ( $this->progress->is_cancelled( $export_id ) ) {
-				return;
-			}
+		// Process entire batch with parallel HTTP fetching.
+		$this->export_manager->process_batch( $job, $batch );
 
-			$this->export_manager->process_url( $job, $queue_item );
-
-			$counts = $this->crawl_queue->get_counts( $export_id );
-			$this->progress->update_counts(
-				$export_id,
-				$counts['completed'],
-				$counts['failed'],
-				$queue_item->url,
-			);
-		}
+		// Update progress once after the whole batch.
+		$counts   = $this->crawl_queue->get_counts( $export_id );
+		$last_url = end( $batch ) ? end( $batch )->url : '';
+		$this->progress->update_counts(
+			$export_id,
+			$counts['completed'],
+			$counts['failed'],
+			$last_url,
+		);
 
 		// Schedule next batch if there are still pending URLs.
 		if ( $this->crawl_queue->has_pending( $export_id ) ) {

@@ -14,19 +14,27 @@ final class HtmlProcessor {
 	/**
 	 * Process an HTML page: rewrite URLs and collect assets.
 	 *
+	 * Parses DOMDocument once and shares it across all operations.
+	 *
 	 * @return array{html: string, assets: string[], discovered_urls: string[]}
 	 */
 	public function process( string $html, string $page_url, string $url_mode, string $base_url ): array {
 		$site_url = untrailingslashit( home_url() );
 
-		// Collect assets before rewriting.
-		$assets = $this->asset_collector->collect_from_html( $html, $site_url );
+		// Single DOMDocument parse for all operations.
+		$doc = new \DOMDocument();
+		libxml_use_internal_errors( true );
+		$doc->loadHTML( '<?xml encoding="utf-8" ?>' . $html, LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD );
+		libxml_clear_errors();
 
-		// Discover internal links for further crawling.
-		$discovered = $this->extract_internal_links( $html, $site_url );
+		// Collect assets from the parsed DOM (before rewriting changes URLs).
+		$assets = $this->asset_collector->collect_from_doc( $doc, $site_url, $html );
 
-		// Rewrite HTML URLs.
-		$html = $this->rewrite_html( $html, $page_url, $url_mode, $base_url, $site_url );
+		// Discover internal links from the parsed DOM.
+		$discovered = $this->extract_internal_links_from_doc( $doc, $site_url );
+
+		// Rewrite URLs in the same DOM.
+		$html = $this->rewrite_doc( $doc, $page_url, $url_mode, $base_url, $site_url );
 
 		return [
 			'html'            => $html,
@@ -35,12 +43,7 @@ final class HtmlProcessor {
 		];
 	}
 
-	private function rewrite_html( string $html, string $page_url, string $url_mode, string $base_url, string $site_url ): string {
-		$doc = new \DOMDocument();
-		libxml_use_internal_errors( true );
-		$doc->loadHTML( '<?xml encoding="utf-8" ?>' . $html, LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD );
-		libxml_clear_errors();
-
+	private function rewrite_doc( \DOMDocument $doc, string $page_url, string $url_mode, string $base_url, string $site_url ): string {
 		$rewrite = fn( string $url ) => $this->url_rewriter->rewrite( $url, $page_url, $url_mode, $base_url );
 
 		// <a href>
@@ -121,16 +124,12 @@ final class HtmlProcessor {
 	}
 
 	/**
-	 * Extract internal links from HTML for further crawling.
+	 * Extract internal links from a pre-parsed DOMDocument.
 	 *
 	 * @return string[]
 	 */
-	private function extract_internal_links( string $html, string $site_url ): array {
+	private function extract_internal_links_from_doc( \DOMDocument $doc, string $site_url ): array {
 		$urls = [];
-		$doc  = new \DOMDocument();
-		libxml_use_internal_errors( true );
-		$doc->loadHTML( '<?xml encoding="utf-8" ?>' . $html, LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD );
-		libxml_clear_errors();
 
 		foreach ( $doc->getElementsByTagName( 'a' ) as $el ) {
 			$href = $el->getAttribute( 'href' );

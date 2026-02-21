@@ -7,8 +7,10 @@ namespace StaticExportWP\Export;
 use StaticExportWP\Background\ActionSchedulerBridge;
 use StaticExportWP\Background\ProgressTracker;
 use StaticExportWP\Core\Settings;
+use StaticExportWP\Crawler\BatchFetcher;
 use StaticExportWP\Crawler\CrawlQueue;
 use StaticExportWP\Crawler\Fetcher;
+use StaticExportWP\Crawler\FetchResult;
 use StaticExportWP\Crawler\UrlDiscovery;
 use StaticExportWP\Utility\Logger;
 
@@ -26,6 +28,7 @@ final class ExportManager {
 		private readonly ActionSchedulerBridge $scheduler,
 		private readonly Logger $logger,
 		private readonly ?ContentHashStore $content_hash_store = null,
+		private readonly ?BatchFetcher $batch_fetcher = null,
 	) {}
 
 	/**
@@ -96,20 +99,21 @@ final class ExportManager {
 
 			$batch = $this->crawl_queue->get_next_batch( $job->export_id, $batch_size );
 
-			foreach ( $batch as $queue_item ) {
-				$this->process_url( $job, $queue_item );
+			// Use parallel fetching when available.
+			$this->process_batch( $job, $batch );
 
-				$counts = $this->crawl_queue->get_counts( $job->export_id );
-				$this->progress->update_counts(
-					$job->export_id,
-					$counts['completed'],
-					$counts['failed'],
-					$queue_item->url,
-				);
+			// Update progress once per batch instead of per URL.
+			$counts    = $this->crawl_queue->get_counts( $job->export_id );
+			$last_url  = end( $batch ) ? end( $batch )->url : '';
+			$this->progress->update_counts(
+				$job->export_id,
+				$counts['completed'],
+				$counts['failed'],
+				$last_url,
+			);
 
-				if ( $on_progress ) {
-					$on_progress( $counts['completed'], $counts['total'], $queue_item->url );
-				}
+			if ( $on_progress ) {
+				$on_progress( $counts['completed'], $counts['total'], $last_url );
 			}
 		}
 
@@ -203,6 +207,138 @@ final class ExportManager {
 			);
 
 			// Store content hash for incremental export.
+			if ( null !== $this->content_hash_store ) {
+				$content_hash = ContentHashStore::hash_content( $result->body );
+				$this->content_hash_store->store_hash(
+					$queue_item->url,
+					$content_hash,
+					$output_path,
+					$job->export_id,
+				);
+			}
+		} else {
+			$this->crawl_queue->mark_failed(
+				(int) $queue_item->id,
+				'Failed to write output file',
+				$result->http_status,
+			);
+		}
+	}
+
+	/**
+	 * Process a batch of queue items with parallel HTTP fetching.
+	 *
+	 * @param ExportJob $job        The export job.
+	 * @param object[]  $queue_items Queue rows from get_next_batch().
+	 */
+	public function process_batch( ExportJob $job, array $queue_items ): void {
+		if ( null === $this->batch_fetcher || empty( $queue_items ) ) {
+			// Fallback to sequential if no batch fetcher.
+			foreach ( $queue_items as $queue_item ) {
+				$this->process_url( $job, $queue_item );
+			}
+			return;
+		}
+
+		$urls = array_map( fn( $item ) => $item->url, $queue_items );
+		$results = $this->batch_fetcher->fetch_batch( $urls );
+
+		// Map queue items by URL for quick lookup.
+		$items_by_url = [];
+		foreach ( $queue_items as $item ) {
+			$items_by_url[ $item->url ] = $item;
+		}
+
+		foreach ( $results as $url => $result ) {
+			$queue_item = $items_by_url[ $url ] ?? null;
+			if ( null === $queue_item ) {
+				continue;
+			}
+
+			$this->process_fetched_result( $job, $queue_item, $result );
+		}
+	}
+
+	/**
+	 * Process an already-fetched result for a queue item.
+	 */
+	private function process_fetched_result( ExportJob $job, object $queue_item, FetchResult $result ): void {
+		$this->logger->info( 'Processing URL', [ 'url' => $queue_item->url ] );
+
+		if ( ! $result->is_success() ) {
+			$this->crawl_queue->mark_failed(
+				(int) $queue_item->id,
+				$result->error ?? "HTTP {$result->http_status}",
+				$result->http_status,
+			);
+			return;
+		}
+
+		// Incremental export: skip unchanged content.
+		$incremental = (bool) $this->settings->get( 'incremental_export', false );
+		if ( $incremental && null !== $this->content_hash_store ) {
+			$new_hash    = ContentHashStore::hash_content( $result->body );
+			$stored_hash = $this->content_hash_store->get_hash( $queue_item->url );
+
+			if ( null !== $stored_hash && $stored_hash === $new_hash ) {
+				$this->logger->info( 'Skipping unchanged URL', [ 'url' => $queue_item->url ] );
+				$this->crawl_queue->mark_completed(
+					(int) $queue_item->id,
+					$result->http_status,
+					$result->content_type,
+					'',
+				);
+				return;
+			}
+		}
+
+		if ( $result->is_html() ) {
+			$processed = $this->html_processor->process(
+				$result->body,
+				$queue_item->url,
+				$job->url_mode,
+				$job->base_url,
+			);
+
+			$output_path = $this->file_writer->write_html(
+				$job->output_dir,
+				$queue_item->url,
+				$processed['html'],
+			);
+
+			// Enqueue newly discovered URLs (filtered by pagination depth).
+			$discovered = $this->filter_pagination( $processed['discovered_urls'] );
+			if ( ! empty( $discovered ) ) {
+				$this->crawl_queue->enqueue( $job->export_id, $discovered );
+				$counts = $this->crawl_queue->get_counts( $job->export_id );
+				$this->progress->update_total( $job->export_id, $counts['total'] );
+			}
+
+			// Copy assets.
+			$site_url = untrailingslashit( home_url() );
+			foreach ( $processed['assets'] as $asset_url ) {
+				$copied = $this->file_writer->copy_asset( $job->output_dir, $asset_url, $site_url );
+
+				if ( false !== $copied && $this->is_css_url( $asset_url ) ) {
+					$this->crawl_css_assets( $job->output_dir, $asset_url, $site_url );
+				}
+			}
+		} else {
+			$output_path = $this->file_writer->write_html(
+				$job->output_dir,
+				$queue_item->url,
+				$result->body,
+			);
+		}
+
+		if ( false !== $output_path ) {
+			$this->crawl_queue->mark_completed(
+				(int) $queue_item->id,
+				$result->http_status,
+				$result->content_type,
+				$output_path,
+			);
+
 			if ( null !== $this->content_hash_store ) {
 				$content_hash = ContentHashStore::hash_content( $result->body );
 				$this->content_hash_store->store_hash(

@@ -8,6 +8,9 @@ use StaticExportWP\Utility\PathHelper;
 
 final class FileWriter {
 
+	/** @var array<string, string|false> Tracks already-copied assets by relative path. */
+	private array $asset_cache = [];
+
 	public function __construct(
 		private readonly PathHelper $path_helper,
 	) {}
@@ -60,14 +63,21 @@ final class FileWriter {
 			return false;
 		}
 
+		// Check in-memory cache first — avoids file_exists() syscall.
+		if ( array_key_exists( $relative_path, $this->asset_cache ) ) {
+			return $this->asset_cache[ $relative_path ];
+		}
+
 		$full_path = $this->path_helper->safe_path( $output_dir, $relative_path );
 
 		if ( false === $full_path ) {
+			$this->asset_cache[ $relative_path ] = false;
 			return false;
 		}
 
 		// Don't overwrite if already copied.
 		if ( file_exists( $full_path ) ) {
+			$this->asset_cache[ $relative_path ] = $relative_path;
 			return $relative_path;
 		}
 
@@ -81,6 +91,7 @@ final class FileWriter {
 		if ( null !== $local_path && file_exists( $local_path ) ) {
 			// Local file — copy directly.
 			if ( copy( $local_path, $full_path ) ) {
+				$this->asset_cache[ $relative_path ] = $relative_path;
 				return $relative_path;
 			}
 		} else {
@@ -98,11 +109,13 @@ final class FileWriter {
 				}
 
 				if ( $wp_filesystem->put_contents( $full_path, wp_remote_retrieve_body( $response ), FS_CHMOD_FILE ) ) {
+					$this->asset_cache[ $relative_path ] = $relative_path;
 					return $relative_path;
 				}
 			}
 		}
 
+		$this->asset_cache[ $relative_path ] = false;
 		return false;
 	}
 

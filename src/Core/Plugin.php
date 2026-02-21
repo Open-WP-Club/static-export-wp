@@ -10,6 +10,7 @@ use StaticExportWP\Background\ActionSchedulerBridge;
 use StaticExportWP\Background\BatchProcessor;
 use StaticExportWP\Background\ProgressTracker;
 use StaticExportWP\CLI\StaticExportCommand;
+use StaticExportWP\Crawler\BatchFetcher;
 use StaticExportWP\Crawler\CrawlQueue;
 use StaticExportWP\Crawler\Fetcher;
 use StaticExportWP\Crawler\UrlDiscovery;
@@ -48,6 +49,7 @@ final class Plugin {
 		$crawl_queue      = new CrawlQueue();
 		$url_discovery    = new UrlDiscovery( $this->settings );
 		$fetcher          = new Fetcher( $this->settings );
+		$batch_fetcher    = new BatchFetcher( $this->settings );
 		$url_rewriter     = new UrlRewriter( $this->settings );
 		$asset_collector  = new AssetCollector();
 		$html_processor   = new HtmlProcessor( $url_rewriter, $asset_collector );
@@ -68,6 +70,7 @@ final class Plugin {
 			$scheduler,
 			$logger,
 			$content_hash_store,
+			$batch_fetcher,
 		);
 
 		$batch_processor = new BatchProcessor(

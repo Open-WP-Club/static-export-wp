@@ -12,7 +12,7 @@ final class CrawlQueue {
 	}
 
 	/**
-	 * Enqueue a batch of URLs for an export.
+	 * Enqueue a batch of URLs for an export using multi-row INSERT.
 	 *
 	 * @param string   $export_id
 	 * @param string[] $urls
@@ -21,25 +21,40 @@ final class CrawlQueue {
 	public function enqueue( string $export_id, array $urls ): int {
 		global $wpdb;
 
-		$count = 0;
-		$table = $this->table();
+		if ( empty( $urls ) ) {
+			return 0;
+		}
 
-		foreach ( $urls as $url ) {
-			$url_hash = hash( 'sha256', $url );
-			$result   = $wpdb->query( $wpdb->prepare(
-				"INSERT IGNORE INTO {$table} (export_id, url, url_hash, status, created_at, updated_at)
-				VALUES (%s, %s, %s, 'pending', NOW(), NOW())",
-				$export_id,
-				$url,
-				$url_hash,
-			) );
+		$table      = $this->table();
+		$chunk_size = 100;
+		$total      = 0;
 
-			if ( false !== $result && $result > 0 ) {
-				++$count;
+		// Insert in chunks to avoid exceeding max_allowed_packet.
+		foreach ( array_chunk( $urls, $chunk_size ) as $chunk ) {
+			$values       = [];
+			$placeholders = [];
+
+			foreach ( $chunk as $url ) {
+				$url_hash       = hash( 'sha256', $url );
+				$placeholders[] = '(%s, %s, %s, %s, NOW(), NOW())';
+				$values[]       = $export_id;
+				$values[]       = $url;
+				$values[]       = $url_hash;
+				$values[]       = 'pending';
+			}
+
+			$sql = "INSERT IGNORE INTO {$table} (export_id, url, url_hash, status, created_at, updated_at) VALUES "
+				. implode( ', ', $placeholders );
+
+			// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- placeholders built dynamically above.
+			$result = $wpdb->query( $wpdb->prepare( $sql, ...$values ) );
+
+			if ( false !== $result ) {
+				$total += $result;
 			}
 		}
 
-		return $count;
+		return $total;
 	}
 
 	/**

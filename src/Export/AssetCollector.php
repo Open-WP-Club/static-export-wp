@@ -14,15 +14,26 @@ final class AssetCollector {
 	 * @return string[] Array of asset URLs.
 	 */
 	public function collect_from_html( string $html, string $site_url ): array {
-		$assets = [];
-
-		$site_url = untrailingslashit( $site_url );
-
-		// Parse with DOMDocument.
 		$doc = new \DOMDocument();
 		libxml_use_internal_errors( true );
 		$doc->loadHTML( '<?xml encoding="utf-8" ?>' . $html, LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD );
 		libxml_clear_errors();
+
+		return $this->collect_from_doc( $doc, $site_url, $html );
+	}
+
+	/**
+	 * Extract asset URLs from a pre-parsed DOMDocument.
+	 *
+	 * @param \DOMDocument $doc      The parsed document.
+	 * @param string       $site_url The site URL for filtering.
+	 * @param string       $html     Original HTML for inline CSS url() extraction.
+	 * @return string[] Array of asset URLs.
+	 */
+	public function collect_from_doc( \DOMDocument $doc, string $site_url, string $html = '' ): array {
+		$assets = [];
+
+		$site_url = untrailingslashit( $site_url );
 
 		// <link href="..."> (stylesheets, icons, etc.)
 		foreach ( $doc->getElementsByTagName( 'link' ) as $el ) {
@@ -77,6 +88,9 @@ final class AssetCollector {
 		}
 
 		// Extract url() references from inline styles.
+		if ( '' === $html ) {
+			$html = $doc->saveHTML() ?: '';
+		}
 		$assets = array_merge( $assets, $this->extract_css_urls( $html ) );
 
 		// Filter and normalize.

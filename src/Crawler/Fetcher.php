@@ -13,8 +13,6 @@ final class Fetcher {
 	) {}
 
 	public function fetch( string $url ): FetchResult {
-		$this->maybe_rate_limit();
-
 		$args = [
 			'timeout'     => $this->settings->get( 'timeout', 30 ),
 			'redirection' => 5,
@@ -51,17 +49,4 @@ final class Fetcher {
 		);
 	}
 
-	private function maybe_rate_limit(): void {
-		$rate_limit = (int) $this->settings->get( 'rate_limit', 50 );
-
-		if ( $rate_limit <= 0 ) {
-			return;
-		}
-
-		// Rate limit in milliseconds between requests.
-		$delay_ms = (int) ( 1000 / $rate_limit );
-		if ( $delay_ms > 0 ) {
-			usleep( $delay_ms * 1000 );
-		}
-	}
 }
