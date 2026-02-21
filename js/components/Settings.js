@@ -60,6 +60,8 @@ export default function Settings() {
 				</CardHeader>
 				<CardBody>
 					<TextControl
+						__next40pxDefaultSize
+						__nextHasNoMarginBottom
 						label={ __( 'Output Directory', 'static-export-wp' ) }
 						value={ form.output_dir || '' }
 						onChange={ ( val ) => updateField( 'output_dir', val ) }
@@ -67,6 +69,8 @@ export default function Settings() {
 					/>
 
 					<SelectControl
+						__next40pxDefaultSize
+						__nextHasNoMarginBottom
 						label={ __( 'URL Mode', 'static-export-wp' ) }
 						value={ form.url_mode || 'relative' }
 						options={ [
@@ -79,6 +83,8 @@ export default function Settings() {
 
 					{ form.url_mode === 'absolute' && (
 						<TextControl
+							__next40pxDefaultSize
+							__nextHasNoMarginBottom
 							label={ __( 'Base URL', 'static-export-wp' ) }
 							value={ form.base_url || '' }
 							onChange={ ( val ) => updateField( 'base_url', val ) }
@@ -88,6 +94,8 @@ export default function Settings() {
 					) }
 
 					<RangeControl
+						__next40pxDefaultSize
+						__nextHasNoMarginBottom
 						label={ __( 'Batch Size', 'static-export-wp' ) }
 						value={ form.batch_size || 10 }
 						onChange={ ( val ) => updateField( 'batch_size', val ) }
@@ -97,6 +105,8 @@ export default function Settings() {
 					/>
 
 					<RangeControl
+						__next40pxDefaultSize
+						__nextHasNoMarginBottom
 						label={ __( 'Rate Limit (req/s)', 'static-export-wp' ) }
 						value={ form.rate_limit || 50 }
 						onChange={ ( val ) => updateField( 'rate_limit', val ) }
@@ -106,6 +116,8 @@ export default function Settings() {
 					/>
 
 					<RangeControl
+						__next40pxDefaultSize
+						__nextHasNoMarginBottom
 						label={ __( 'Timeout (seconds)', 'static-export-wp' ) }
 						value={ form.timeout || 30 }
 						onChange={ ( val ) => updateField( 'timeout', val ) }
@@ -114,6 +126,8 @@ export default function Settings() {
 					/>
 
 					<RangeControl
+						__next40pxDefaultSize
+						__nextHasNoMarginBottom
 						label={ __( 'Max Retries', 'static-export-wp' ) }
 						value={ form.max_retries || 3 }
 						onChange={ ( val ) => updateField( 'max_retries', val ) }
@@ -122,6 +136,7 @@ export default function Settings() {
 					/>
 
 					<TextareaControl
+						__nextHasNoMarginBottom
 						label={ __( 'Extra URLs', 'static-export-wp' ) }
 						value={ ( form.extra_urls || [] ).join( '\n' ) }
 						onChange={ ( val ) =>
@@ -132,6 +147,7 @@ export default function Settings() {
 					/>
 
 					<TextareaControl
+						__nextHasNoMarginBottom
 						label={ __( 'Exclude Patterns', 'static-export-wp' ) }
 						value={ ( form.exclude_patterns || [] ).join( '\n' ) }
 						onChange={ ( val ) =>
