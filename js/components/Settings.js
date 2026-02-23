@@ -17,11 +17,18 @@ import { __ } from '@wordpress/i18n';
 import useSettings from '../hooks/useSettings';
 import { api } from '../api';
 
+const WEBHOOK_EVENT_OPTIONS = [
+	{ value: 'completed', label: __( 'Export completed', 'static-export-wp' ) },
+	{ value: 'failed', label: __( 'Export failed', 'static-export-wp' ) },
+];
+
 export default function Settings() {
 	const { settings, loading, saving, error, saveSettings } = useSettings();
 	const [ form, setForm ] = useState( {} );
 	const [ saved, setSaved ] = useState( false );
 	const [ postTypes, setPostTypes ] = useState( [] );
+	const [ webhookTesting, setWebhookTesting ] = useState( false );
+	const [ webhookResult, setWebhookResult ] = useState( null );
 
 	useEffect( () => {
 		if ( settings ) {
@@ -40,6 +47,18 @@ export default function Settings() {
 	const updateField = ( key, value ) => {
 		setForm( ( prev ) => ( { ...prev, [ key ]: value } ) );
 		setSaved( false );
+	};
+
+	const handleTestWebhook = async () => {
+		setWebhookTesting( true );
+		setWebhookResult( null );
+		try {
+			const res = await api.testWebhook();
+			setWebhookResult( { success: true, message: __( 'Webhook delivered successfully.', 'static-export-wp' ) } );
+		} catch ( err ) {
+			setWebhookResult( { success: false, message: err.message || __( 'Webhook delivery failed.', 'static-export-wp' ) } );
+		}
+		setWebhookTesting( false );
 	};
 
 	const handleSave = async () => {
@@ -231,6 +250,8 @@ export default function Settings() {
 						options={ [
 							{ label: __( 'None', 'static-export-wp' ), value: 'none' },
 							{ label: __( 'Shell Command', 'static-export-wp' ), value: 'command' },
+							{ label: __( 'Git Push', 'static-export-wp' ), value: 'git' },
+							{ label: __( 'Netlify API', 'static-export-wp' ), value: 'netlify' },
 						] }
 						onChange={ ( val ) => updateField( 'deploy_method', val ) }
 						help={ __( 'Automatically deploy after a successful export.', 'static-export-wp' ) }
@@ -246,6 +267,62 @@ export default function Settings() {
 							placeholder="rsync -avz {{output_dir}}/ user@host:/var/www/"
 							help={ __( 'Shell command to run after export. Use {{output_dir}} as placeholder for the export path.', 'static-export-wp' ) }
 						/>
+					) }
+
+					{ form.deploy_method === 'git' && (
+						<>
+							<TextControl
+								__next40pxDefaultSize
+								__nextHasNoMarginBottom
+								label={ __( 'Repository URL', 'static-export-wp' ) }
+								value={ form.deploy_git_remote || '' }
+								onChange={ ( val ) => updateField( 'deploy_git_remote', val ) }
+								placeholder="https://github.com/user/repo.git"
+								help={ __( 'HTTPS URL of the Git repository to push to.', 'static-export-wp' ) }
+							/>
+							<TextControl
+								__next40pxDefaultSize
+								__nextHasNoMarginBottom
+								label={ __( 'Branch', 'static-export-wp' ) }
+								value={ form.deploy_git_branch || 'main' }
+								onChange={ ( val ) => updateField( 'deploy_git_branch', val ) }
+								placeholder="main"
+							/>
+							<TextControl
+								__next40pxDefaultSize
+								__nextHasNoMarginBottom
+								label={ __( 'Access Token', 'static-export-wp' ) }
+								value={ form.deploy_git_token || '' }
+								onChange={ ( val ) => updateField( 'deploy_git_token', val ) }
+								type="password"
+								help={ __( 'Personal access token or fine-grained token with push access. Leave empty for public repos.', 'static-export-wp' ) }
+							/>
+							<p className="sewp-settings__deploy-hint">
+								{ __( 'Platforms like GitHub Pages, Netlify, Vercel, and Cloudflare Pages can auto-deploy from this repository.', 'static-export-wp' ) }
+							</p>
+						</>
+					) }
+
+					{ form.deploy_method === 'netlify' && (
+						<>
+							<TextControl
+								__next40pxDefaultSize
+								__nextHasNoMarginBottom
+								label={ __( 'Personal Access Token', 'static-export-wp' ) }
+								value={ form.deploy_netlify_token || '' }
+								onChange={ ( val ) => updateField( 'deploy_netlify_token', val ) }
+								type="password"
+								help={ __( 'Netlify personal access token from User Settings > Applications.', 'static-export-wp' ) }
+							/>
+							<TextControl
+								__next40pxDefaultSize
+								__nextHasNoMarginBottom
+								label={ __( 'Site ID', 'static-export-wp' ) }
+								value={ form.deploy_netlify_site_id || '' }
+								onChange={ ( val ) => updateField( 'deploy_netlify_site_id', val ) }
+								help={ __( 'Found in Site Settings > General > Site ID.', 'static-export-wp' ) }
+							/>
+						</>
 					) }
 
 					<ToggleControl
@@ -295,6 +372,22 @@ export default function Settings() {
 
 					<ToggleControl
 						__nextHasNoMarginBottom
+						label={ __( 'Minify CSS', 'static-export-wp' ) }
+						help={ __( 'Remove whitespace and comments from CSS files during export.', 'static-export-wp' ) }
+						checked={ !! form.minify_css }
+						onChange={ ( val ) => updateField( 'minify_css', val ) }
+					/>
+
+					<ToggleControl
+						__nextHasNoMarginBottom
+						label={ __( 'Minify JS', 'static-export-wp' ) }
+						help={ __( 'Remove whitespace and comments from JavaScript files during export.', 'static-export-wp' ) }
+						checked={ !! form.minify_js }
+						onChange={ ( val ) => updateField( 'minify_js', val ) }
+					/>
+
+					<ToggleControl
+						__nextHasNoMarginBottom
 						label={ __( 'Email Notification', 'static-export-wp' ) }
 						help={ __( 'Send an email when a background export completes or fails.', 'static-export-wp' ) }
 						checked={ !! form.notify_enabled }
@@ -312,6 +405,110 @@ export default function Settings() {
 							help={ __( 'Leave blank to use the admin email address.', 'static-export-wp' ) }
 						/>
 					) }
+
+					<TextControl
+						__next40pxDefaultSize
+						__nextHasNoMarginBottom
+						label={ __( 'Webhook URL', 'static-export-wp' ) }
+						value={ form.webhook_url || '' }
+						onChange={ ( val ) => {
+							updateField( 'webhook_url', val );
+							setWebhookResult( null );
+						} }
+						placeholder="https://hooks.slack.com/services/..."
+						help={ __( 'POST a JSON payload to this URL on export completion or failure.', 'static-export-wp' ) }
+					/>
+
+					{ !! form.webhook_url && (
+						<>
+							<TextControl
+								__next40pxDefaultSize
+								__nextHasNoMarginBottom
+								label={ __( 'Webhook Secret', 'static-export-wp' ) }
+								value={ form.webhook_secret || '' }
+								onChange={ ( val ) => updateField( 'webhook_secret', val ) }
+								type="password"
+								help={ __( 'Optional. Used to sign payloads with HMAC-SHA256 (X-SEWP-Signature header).', 'static-export-wp' ) }
+							/>
+
+							<fieldset className="sewp-settings__webhook-events">
+								<legend>{ __( 'Webhook Events', 'static-export-wp' ) }</legend>
+								{ WEBHOOK_EVENT_OPTIONS.map( ( opt ) => (
+									<CheckboxControl
+										__nextHasNoMarginBottom
+										key={ opt.value }
+										label={ opt.label }
+										checked={ ( form.webhook_events || [] ).includes( opt.value ) }
+										onChange={ ( checked ) => {
+											const current = form.webhook_events || [];
+											const updated = checked
+												? [ ...current, opt.value ]
+												: current.filter( ( e ) => e !== opt.value );
+											updateField( 'webhook_events', updated );
+										} }
+									/>
+								) ) }
+							</fieldset>
+
+							<div className="sewp-settings__webhook-test">
+								<Button
+									variant="secondary"
+									onClick={ handleTestWebhook }
+									isBusy={ webhookTesting }
+									disabled={ webhookTesting }
+								>
+									{ __( 'Send Test', 'static-export-wp' ) }
+								</Button>
+								{ webhookResult && (
+									<Notice
+										status={ webhookResult.success ? 'success' : 'error' }
+										isDismissible={ false }
+										className="sewp-settings__webhook-result"
+									>
+										{ webhookResult.message }
+									</Notice>
+								) }
+							</div>
+						</>
+					) }
+
+					<div className="sewp-settings__actions">
+						<Button
+							variant="primary"
+							onClick={ handleSave }
+							isBusy={ saving }
+							disabled={ saving }
+						>
+							{ __( 'Save Settings', 'static-export-wp' ) }
+						</Button>
+					</div>
+				</CardBody>
+			</Card>
+
+			<Card>
+				<CardHeader>
+					<h2>{ __( 'Hosting Files', 'static-export-wp' ) }</h2>
+				</CardHeader>
+				<CardBody>
+					<TextareaControl
+						__nextHasNoMarginBottom
+						label={ __( '_redirects', 'static-export-wp' ) }
+						value={ form.redirects_content || '' }
+						onChange={ ( val ) => updateField( 'redirects_content', val ) }
+						help={ __( 'Written as _redirects in the export root. One rule per line, e.g. /old-path /new-path 301', 'static-export-wp' ) }
+						rows={ 6 }
+						className="sewp-settings__code-textarea"
+					/>
+
+					<TextareaControl
+						__nextHasNoMarginBottom
+						label={ __( '_headers', 'static-export-wp' ) }
+						value={ form.headers_content || '' }
+						onChange={ ( val ) => updateField( 'headers_content', val ) }
+						help={ __( 'Written as _headers in the export root. Use Netlify/Cloudflare Pages header syntax.', 'static-export-wp' ) }
+						rows={ 6 }
+						className="sewp-settings__code-textarea"
+					/>
 
 					<div className="sewp-settings__actions">
 						<Button

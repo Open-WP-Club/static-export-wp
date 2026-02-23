@@ -12,6 +12,7 @@ use StaticExportWP\Crawler\CrawlQueue;
 use StaticExportWP\Crawler\Fetcher;
 use StaticExportWP\Crawler\FetchResult;
 use StaticExportWP\Crawler\UrlDiscovery;
+use StaticExportWP\Deploy\DeployerFactory;
 use StaticExportWP\Utility\Logger;
 
 final class ExportManager {
@@ -30,6 +31,8 @@ final class ExportManager {
 		private readonly ?ContentHashStore $content_hash_store = null,
 		private readonly ?BatchFetcher $batch_fetcher = null,
 		private readonly ?ImageOptimizer $image_optimizer = null,
+		private readonly ?DeployerFactory $deployer_factory = null,
+		private readonly ?AssetMinifier $asset_minifier = null,
 	) {}
 
 	/**
@@ -193,6 +196,9 @@ final class ExportManager {
 
 			// Post-process: convert images to WebP and rewrite HTML references.
 			$this->maybe_optimize_images( $job->output_dir, $output_path, $processed['assets'], $site_url );
+
+			// Post-process: minify CSS/JS assets in-place.
+			$this->maybe_minify_assets( $job->output_dir, $processed['assets'], $site_url );
 		} else {
 			// Non-HTML (e.g., XML feeds) — save as-is.
 			$output_path = $this->file_writer->write_html(
@@ -330,6 +336,9 @@ final class ExportManager {
 
 			// Post-process: convert images to WebP and rewrite HTML references.
 			$this->maybe_optimize_images( $job->output_dir, $output_path, $processed['assets'], $site_url );
+
+			// Post-process: minify CSS/JS assets in-place.
+			$this->maybe_minify_assets( $job->output_dir, $processed['assets'], $site_url );
 		} else {
 			$output_path = $this->file_writer->write_html(
 				$job->output_dir,
@@ -375,6 +384,8 @@ final class ExportManager {
 		$this->generate_404_page( $job );
 		$this->generate_robots_txt( $job );
 		$this->generate_sitemap( $job );
+		$this->generate_redirects_file( $job );
+		$this->generate_headers_file( $job );
 
 		/**
 		 * Fires after sitemap generation, before progress finalization.
@@ -392,6 +403,10 @@ final class ExportManager {
 
 		$this->progress->finish( $job->export_id, $status );
 		$this->update_export_log( $job->export_id, $status, $counts );
+
+		// Collect file sizes by category for the size report.
+		$size_report = SizeReport::scan( $job->output_dir );
+		$this->save_size_report( $job->export_id, $size_report );
 
 		// Run post-export deploy if configured and export has completed pages.
 		if ( 'completed' === $status ) {
@@ -528,6 +543,34 @@ final class ExportManager {
 	}
 
 	/**
+	 * Write a _redirects file from user-provided content.
+	 */
+	private function generate_redirects_file( ExportJob $job ): void {
+		$content = trim( (string) ( $job->settings_snapshot['redirects_content'] ?? '' ) );
+
+		if ( '' === $content ) {
+			return;
+		}
+
+		$this->file_writer->write_html( $job->output_dir, '/_redirects', $content . "\n" );
+		$this->logger->info( '_redirects file generated' );
+	}
+
+	/**
+	 * Write a _headers file from user-provided content.
+	 */
+	private function generate_headers_file( ExportJob $job ): void {
+		$content = trim( (string) ( $job->settings_snapshot['headers_content'] ?? '' ) );
+
+		if ( '' === $content ) {
+			return;
+		}
+
+		$this->file_writer->write_html( $job->output_dir, '/_headers', $content . "\n" );
+		$this->logger->info( '_headers file generated' );
+	}
+
+	/**
 	 * Crawl a CSS file for nested asset references (@import, url()).
 	 */
 	private function crawl_css_assets( string $output_dir, string $css_url, string $site_url ): void {
@@ -542,6 +585,9 @@ final class ExportManager {
 		foreach ( $nested_assets as $asset_url ) {
 			$this->file_writer->copy_asset( $output_dir, $asset_url, $site_url );
 		}
+
+		// Minify the CSS file itself after nested assets are copied.
+		$this->maybe_minify_single_asset( $output_dir, $css_url, $site_url );
 	}
 
 	/**
@@ -637,50 +683,88 @@ final class ExportManager {
 		file_put_contents( $output_path, $html );
 	}
 
+	/**
+	 * Minify CSS/JS asset files in-place.
+	 *
+	 * @param string   $output_dir Export output directory.
+	 * @param string[] $asset_urls Asset URLs collected from this page.
+	 * @param string   $site_url   The WordPress site URL (no trailing slash).
+	 */
+	private function maybe_minify_assets( string $output_dir, array $asset_urls, string $site_url ): void {
+		if ( null === $this->asset_minifier ) {
+			return;
+		}
+
+		$css_enabled = (bool) $this->settings->get( 'minify_css', false );
+		$js_enabled  = (bool) $this->settings->get( 'minify_js', false );
+
+		if ( ! $css_enabled && ! $js_enabled ) {
+			return;
+		}
+
+		foreach ( $asset_urls as $asset_url ) {
+			$relative = $this->asset_url_to_relative_path( $asset_url, $site_url );
+
+			if ( '' === $relative ) {
+				continue;
+			}
+
+			$absolute = trailingslashit( $output_dir ) . $relative;
+
+			if ( file_exists( $absolute ) ) {
+				$this->asset_minifier->minify_asset( $absolute, $css_enabled, $js_enabled );
+			}
+		}
+	}
+
+	/**
+	 * Minify a single asset file by URL (used for CSS files discovered via crawl_css_assets).
+	 */
+	private function maybe_minify_single_asset( string $output_dir, string $asset_url, string $site_url ): void {
+		if ( null === $this->asset_minifier ) {
+			return;
+		}
+
+		$css_enabled = (bool) $this->settings->get( 'minify_css', false );
+
+		if ( ! $css_enabled ) {
+			return;
+		}
+
+		$relative = $this->asset_url_to_relative_path( $asset_url, $site_url );
+
+		if ( '' === $relative ) {
+			return;
+		}
+
+		$absolute = trailingslashit( $output_dir ) . $relative;
+
+		if ( file_exists( $absolute ) ) {
+			$this->asset_minifier->minify_css( $absolute );
+		}
+	}
+
 	private function is_css_url( string $url ): bool {
 		$path = wp_parse_url( $url, PHP_URL_PATH ) ?? '';
 		return str_ends_with( strtolower( $path ), '.css' );
 	}
 
 	/**
-	 * Run post-export deploy command if configured.
-	 *
-	 * Security note: The deploy command is set by a user with manage_options
-	 * capability (the same trust level as installing plugins). The output_dir
-	 * is escaped via escapeshellarg.
+	 * Run post-export deploy if configured.
 	 */
 	private function run_deploy( ExportJob $job ): void {
-		$method = $this->settings->get( 'deploy_method', 'none' );
+		if ( null !== $this->deployer_factory ) {
+			$deployer = $this->deployer_factory->create();
 
-		if ( 'none' === $method ) {
-			return;
-		}
+			if ( null !== $deployer ) {
+				$this->logger->info( 'Deploy: starting', [ 'method' => $deployer->label() ] );
+				$result = $deployer->deploy( $job );
 
-		if ( 'command' === $method ) {
-			$command = $this->settings->get( 'deploy_command', '' );
-
-			if ( '' === $command ) {
-				return;
-			}
-
-			// Replace placeholder with escaped output directory path.
-			$command = str_replace( '{{output_dir}}', escapeshellarg( $job->output_dir ), $command );
-
-			$this->logger->info( 'Running deploy command', [ 'command' => $command ] );
-
-			// Command is admin-configured (manage_options), same trust level as plugin installation.
-			// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.system_calls_exec
-			$output    = [];
-			$exit_code = 0;
-			exec( $command . ' 2>&1', $output, $exit_code );
-
-			if ( 0 === $exit_code ) {
-				$this->logger->info( 'Deploy completed successfully' );
-			} else {
-				$this->logger->error( 'Deploy failed', [
-					'exit_code' => $exit_code,
-					'output'    => implode( "\n", $output ),
-				] );
+				if ( $result->success ) {
+					$this->logger->info( 'Deploy: ' . $result->message, $result->context );
+				} else {
+					$this->logger->error( 'Deploy: ' . $result->message, $result->context );
+				}
 			}
 		}
 
@@ -725,6 +809,18 @@ final class ExportManager {
 			],
 			[ 'export_id' => $export_id ],
 			[ '%s', '%d', '%d', '%d', '%s' ],
+			[ '%s' ],
+		);
+	}
+
+	private function save_size_report( string $export_id, array $size_report ): void {
+		global $wpdb;
+
+		$wpdb->update(
+			$wpdb->prefix . 'sewp_export_log',
+			[ 'size_report' => wp_json_encode( $size_report ) ],
+			[ 'export_id' => $export_id ],
+			[ '%s' ],
 			[ '%s' ],
 		);
 	}

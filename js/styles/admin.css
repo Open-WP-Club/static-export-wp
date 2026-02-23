@@ -133,6 +133,42 @@
 	border-top: 1px solid #e0e0e0;
 }
 
+/* Code-style textareas (hosting files) */
+.sewp-settings__code-textarea textarea {
+	font-family: Menlo, Consolas, Monaco, "Liberation Mono", monospace;
+	font-size: 13px;
+	tab-size: 4;
+}
+
+/* Webhook */
+.sewp-settings__webhook-events {
+	margin-bottom: 16px;
+}
+
+.sewp-settings__webhook-events legend {
+	font-weight: 600;
+	margin-bottom: 4px;
+}
+
+.sewp-settings__webhook-test {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	margin-bottom: 16px;
+}
+
+.sewp-settings__webhook-result {
+	margin: 0;
+}
+
+/* Deploy Hints */
+.sewp-settings__deploy-hint {
+	margin: 4px 0 16px;
+	font-style: italic;
+	color: #50575e;
+	font-size: 12px;
+}
+
 /* Export Log */
 .sewp-log__table {
 	width: 100%;
@@ -202,4 +238,76 @@
 
 .sewp-broken-links__na {
 	color: #a7aaad;
+}
+
+/* Size Report */
+.sewp-size-report {
+	margin-top: 16px;
+}
+
+.sewp-size-report__empty {
+	color: #50575e;
+	font-style: italic;
+	margin: 0;
+}
+
+/* Stacked bar */
+.sewp-size-bar {
+	display: flex;
+	height: 20px;
+	border-radius: 4px;
+	overflow: hidden;
+	background: #f0f0f0;
+}
+
+.sewp-size-bar__segment {
+	min-width: 2px;
+	transition: width 0.3s ease;
+}
+
+/* Legend */
+.sewp-size-legend {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px 16px;
+	margin-top: 10px;
+	font-size: 13px;
+	color: #1e1e1e;
+}
+
+.sewp-size-legend__item {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+}
+
+.sewp-size-legend__dot {
+	display: inline-block;
+	width: 10px;
+	height: 10px;
+	border-radius: 2px;
+	flex-shrink: 0;
+}
+
+.sewp-size-legend__total {
+	font-weight: 600;
+	margin-left: auto;
+}
+
+/* Trend graph */
+.sewp-size-trend {
+	margin-top: 20px;
+	padding-top: 16px;
+	border-top: 1px solid #e0e0e0;
+}
+
+.sewp-size-trend__title {
+	font-size: 13px;
+	font-weight: 600;
+	margin: 0 0 8px;
+}
+
+.sewp-size-trend__svg {
+	width: 100%;
+	max-height: 140px;
 }

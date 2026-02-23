@@ -13,6 +13,7 @@ use StaticExportWP\Core\Settings;
 use StaticExportWP\Crawler\CrawlQueue;
 use StaticExportWP\Crawler\UrlDiscovery;
 use StaticExportWP\Export\ExportManager;
+use StaticExportWP\Notification\WebhookNotifier;
 
 final class RestApi {
 
@@ -103,6 +104,23 @@ final class RestApi {
 		register_rest_route( self::NAMESPACE, '/export/log', [
 			'methods'             => \WP_REST_Server::READABLE,
 			'callback'            => [ $log_controller, 'index' ],
+			'permission_callback' => [ $this, 'check_permissions' ],
+		] );
+
+		// Size report.
+		register_rest_route( self::NAMESPACE, '/export/size-report', [
+			'methods'             => \WP_REST_Server::READABLE,
+			'callback'            => [ $log_controller, 'size_report' ],
+			'permission_callback' => [ $this, 'check_permissions' ],
+		] );
+
+		// Webhook test.
+		register_rest_route( self::NAMESPACE, '/webhook/test', [
+			'methods'             => \WP_REST_Server::CREATABLE,
+			'callback'            => function () {
+				$notifier = new WebhookNotifier( $this->settings );
+				return $notifier->send_test();
+			},
 			'permission_callback' => [ $this, 'check_permissions' ],
 		] );
 

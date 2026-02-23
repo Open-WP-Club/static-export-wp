@@ -15,7 +15,9 @@ use StaticExportWP\Crawler\BatchFetcher;
 use StaticExportWP\Crawler\CrawlQueue;
 use StaticExportWP\Crawler\Fetcher;
 use StaticExportWP\Crawler\UrlDiscovery;
+use StaticExportWP\Deploy\DeployerFactory;
 use StaticExportWP\Export\AssetCollector;
+use StaticExportWP\Export\AssetMinifier;
 use StaticExportWP\Export\ContentHashStore;
 use StaticExportWP\Export\ExportManager;
 use StaticExportWP\Export\FileWriter;
@@ -23,6 +25,7 @@ use StaticExportWP\Export\HtmlProcessor;
 use StaticExportWP\Export\ImageOptimizer;
 use StaticExportWP\Export\UrlRewriter;
 use StaticExportWP\Notification\ExportNotifier;
+use StaticExportWP\Notification\WebhookNotifier;
 use StaticExportWP\Search\PagefindRunner;
 use StaticExportWP\Utility\Logger;
 use StaticExportWP\Utility\PathHelper;
@@ -65,6 +68,10 @@ final class Plugin {
 			$logger,
 		);
 
+		$asset_minifier = new AssetMinifier( $logger );
+
+		$deployer_factory = new DeployerFactory( $this->settings, $logger );
+
 		$this->export_manager = new ExportManager(
 			$this->settings,
 			$url_discovery,
@@ -79,6 +86,8 @@ final class Plugin {
 			$content_hash_store,
 			$batch_fetcher,
 			$image_optimizer,
+			$deployer_factory,
+			$asset_minifier,
 		);
 
 		$batch_processor = new BatchProcessor(
@@ -94,6 +103,9 @@ final class Plugin {
 		// Notifications.
 		$notifier = new ExportNotifier( $this->settings );
 		add_action( 'sewp_export_finalized', [ $notifier, 'notify' ], 10, 4 );
+
+		$webhook_notifier = new WebhookNotifier( $this->settings );
+		add_action( 'sewp_export_finalized', [ $webhook_notifier, 'notify' ], 10, 4 );
 
 		// Pagefind search indexing.
 		$pagefind = new PagefindRunner( $this->settings, $logger );

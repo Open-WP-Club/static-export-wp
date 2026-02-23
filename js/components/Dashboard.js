@@ -3,6 +3,7 @@ import { Button, Card, CardBody, CardHeader, Notice } from '@wordpress/component
 import { __, sprintf } from '@wordpress/i18n';
 import { api } from '../api';
 import useExportStatus from '../hooks/useExportStatus';
+import SizeReport from './SizeReport';
 
 export default function Dashboard( { onNavigate } ) {
 	const { status, refresh } = useExportStatus( true );
@@ -140,6 +141,10 @@ export default function Dashboard( { onNavigate } ) {
 						) }
 					</CardBody>
 				</Card>
+			) }
+
+			{ status && status.status !== 'idle' && (
+				<SizeReport />
 			) }
 		</div>
 	);

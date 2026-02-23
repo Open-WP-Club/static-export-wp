@@ -55,4 +55,15 @@ export const api = {
 	getBrokenLinks( exportId ) {
 		return apiFetch( { path: `${ BASE }/export/broken-links?export_id=${ exportId }` } );
 	},
+
+	getSizeReport( limit = 10 ) {
+		return apiFetch( { path: `${ BASE }/export/size-report?limit=${ limit }` } );
+	},
+
+	testWebhook() {
+		return apiFetch( {
+			path: `${ BASE }/webhook/test`,
+			method: 'POST',
+		} );
+	},
 };

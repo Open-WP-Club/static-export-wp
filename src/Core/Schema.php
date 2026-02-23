@@ -6,7 +6,7 @@ namespace StaticExportWP\Core;
 
 final class Schema {
 
-	public const DB_VERSION = '1.2.0';
+	public const DB_VERSION = '1.3.0';
 
 	public static function create_tables(): void {
 		global $wpdb;
@@ -49,6 +49,7 @@ final class Schema {
 			started_at datetime DEFAULT NULL,
 			completed_at datetime DEFAULT NULL,
 			settings_snapshot longtext DEFAULT NULL,
+			size_report longtext DEFAULT NULL,
 			PRIMARY KEY  (id),
 			UNIQUE KEY export_id (export_id)
 		) {$charset_collate};

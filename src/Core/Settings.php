@@ -26,14 +26,26 @@ final class Settings {
 			'exclude_patterns' => [],
 			'deploy_method'    => 'none',
 			'deploy_command'   => '',
+			'deploy_git_remote'      => '',
+			'deploy_git_branch'      => 'main',
+			'deploy_git_token'       => '',
+			'deploy_netlify_token'   => '',
+			'deploy_netlify_site_id' => '',
 			'notify_enabled'   => false,
 			'notify_email'     => '',
+			'webhook_url'      => '',
+			'webhook_secret'   => '',
+			'webhook_events'   => [ 'completed', 'failed' ],
 			'pagination_depth'   => 0,
 			'incremental_export' => false,
 			'pagefind_enabled' => false,
 			'auto_export_on_publish' => false,
 			'image_optimization'     => false,
 			'image_quality'          => 80,
+			'redirects_content'      => '',
+			'headers_content'        => '',
+			'minify_css'             => false,
+			'minify_js'              => false,
 		];
 	}
 
@@ -82,18 +94,33 @@ final class Settings {
 				'sanitize_text_field',
 				(array) ( $values['exclude_patterns'] ?? [] )
 			) ) ),
-			'deploy_method'    => in_array( $values['deploy_method'] ?? '', [ 'none', 'command' ], true )
+			'deploy_method'    => in_array( $values['deploy_method'] ?? '', [ 'none', 'command', 'git', 'netlify' ], true )
 				? $values['deploy_method']
 				: 'none',
 			'deploy_command'   => sanitize_text_field( $values['deploy_command'] ?? '' ),
+			'deploy_git_remote'      => esc_url_raw( $values['deploy_git_remote'] ?? '' ),
+			'deploy_git_branch'      => sanitize_text_field( $values['deploy_git_branch'] ?? 'main' ),
+			'deploy_git_token'       => sanitize_text_field( $values['deploy_git_token'] ?? '' ),
+			'deploy_netlify_token'   => sanitize_text_field( $values['deploy_netlify_token'] ?? '' ),
+			'deploy_netlify_site_id' => sanitize_text_field( $values['deploy_netlify_site_id'] ?? '' ),
 			'notify_enabled'   => (bool) ( $values['notify_enabled'] ?? false ),
 			'notify_email'     => sanitize_email( $values['notify_email'] ?? '' ),
+			'webhook_url'      => esc_url_raw( $values['webhook_url'] ?? '' ),
+			'webhook_secret'   => sanitize_text_field( $values['webhook_secret'] ?? '' ),
+			'webhook_events'   => array_values( array_intersect(
+				(array) ( $values['webhook_events'] ?? [] ),
+				[ 'completed', 'failed' ],
+			) ),
 			'pagination_depth'   => max( 0, (int) ( $values['pagination_depth'] ?? 0 ) ),
 			'incremental_export' => (bool) ( $values['incremental_export'] ?? false ),
 			'pagefind_enabled' => (bool) ( $values['pagefind_enabled'] ?? false ),
 			'auto_export_on_publish' => (bool) ( $values['auto_export_on_publish'] ?? false ),
 			'image_optimization'     => (bool) ( $values['image_optimization'] ?? false ),
 			'image_quality'          => max( 1, min( 100, (int) ( $values['image_quality'] ?? 80 ) ) ),
+			'redirects_content'      => sanitize_textarea_field( $values['redirects_content'] ?? '' ),
+			'headers_content'        => sanitize_textarea_field( $values['headers_content'] ?? '' ),
+			'minify_css'             => (bool) ( $values['minify_css'] ?? false ),
+			'minify_js'              => (bool) ( $values['minify_js'] ?? false ),
 		];
 	}
 }
