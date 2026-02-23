@@ -51,4 +51,8 @@ export const api = {
 			method: 'POST',
 		} );
 	},
+
+	getBrokenLinks( exportId ) {
+		return apiFetch( { path: `${ BASE }/export/broken-links?export_id=${ exportId }` } );
+	},
 };

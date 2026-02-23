@@ -6,7 +6,7 @@ namespace StaticExportWP\Core;
 
 final class Schema {
 
-	public const DB_VERSION = '1.1.0';
+	public const DB_VERSION = '1.2.0';
 
 	public static function create_tables(): void {
 		global $wpdb;
@@ -27,6 +27,7 @@ final class Schema {
 			content_type varchar(100) DEFAULT NULL,
 			output_path text DEFAULT NULL,
 			error_message text DEFAULT NULL,
+			referrer text DEFAULT NULL,
 			attempts tinyint unsigned NOT NULL DEFAULT 0,
 			created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			updated_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,

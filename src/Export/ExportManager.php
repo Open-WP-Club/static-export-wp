@@ -29,6 +29,7 @@ final class ExportManager {
 		private readonly Logger $logger,
 		private readonly ?ContentHashStore $content_hash_store = null,
 		private readonly ?BatchFetcher $batch_fetcher = null,
+		private readonly ?ImageOptimizer $image_optimizer = null,
 	) {}
 
 	/**
@@ -174,7 +175,7 @@ final class ExportManager {
 			// Enqueue newly discovered URLs (filtered by pagination depth).
 			$discovered = $this->filter_pagination( $processed['discovered_urls'] );
 			if ( ! empty( $discovered ) ) {
-				$this->crawl_queue->enqueue( $job->export_id, $discovered );
+				$this->crawl_queue->enqueue( $job->export_id, $discovered, $queue_item->url );
 				// Update total count.
 				$counts = $this->crawl_queue->get_counts( $job->export_id );
 				$this->progress->update_total( $job->export_id, $counts['total'] );
@@ -189,6 +190,9 @@ final class ExportManager {
 					$this->crawl_css_assets( $job->output_dir, $asset_url, $site_url );
 				}
 			}
+
+			// Post-process: convert images to WebP and rewrite HTML references.
+			$this->maybe_optimize_images( $job->output_dir, $output_path, $processed['assets'], $site_url );
 		} else {
 			// Non-HTML (e.g., XML feeds) — save as-is.
 			$output_path = $this->file_writer->write_html(
@@ -309,7 +313,7 @@ final class ExportManager {
 			// Enqueue newly discovered URLs (filtered by pagination depth).
 			$discovered = $this->filter_pagination( $processed['discovered_urls'] );
 			if ( ! empty( $discovered ) ) {
-				$this->crawl_queue->enqueue( $job->export_id, $discovered );
+				$this->crawl_queue->enqueue( $job->export_id, $discovered, $queue_item->url );
 				$counts = $this->crawl_queue->get_counts( $job->export_id );
 				$this->progress->update_total( $job->export_id, $counts['total'] );
 			}
@@ -323,6 +327,9 @@ final class ExportManager {
 					$this->crawl_css_assets( $job->output_dir, $asset_url, $site_url );
 				}
 			}
+
+			// Post-process: convert images to WebP and rewrite HTML references.
+			$this->maybe_optimize_images( $job->output_dir, $output_path, $processed['assets'], $site_url );
 		} else {
 			$output_path = $this->file_writer->write_html(
 				$job->output_dir,
@@ -566,6 +573,68 @@ final class ExportManager {
 			}
 			return true;
 		} ) );
+	}
+
+	/**
+	 * Convert a full asset URL to a relative path within the output directory.
+	 */
+	private function asset_url_to_relative_path( string $url, string $site_url ): string {
+		$site_path = wp_parse_url( $site_url, PHP_URL_PATH ) ?? '';
+		$url_path  = wp_parse_url( $url, PHP_URL_PATH ) ?? '';
+
+		if ( '' !== $site_path && str_starts_with( $url_path, $site_path ) ) {
+			$url_path = substr( $url_path, strlen( $site_path ) );
+		}
+
+		return ltrim( $url_path, '/' );
+	}
+
+	/**
+	 * Optimize images to WebP and rewrite references in the HTML file.
+	 *
+	 * @param string   $output_dir  Export output directory.
+	 * @param string   $output_path Path to the written HTML file.
+	 * @param string[] $asset_urls  Asset URLs collected from this page.
+	 * @param string   $site_url    The WordPress site URL (no trailing slash).
+	 */
+	private function maybe_optimize_images( string $output_dir, string $output_path, array $asset_urls, string $site_url ): void {
+		if ( null === $this->image_optimizer ) {
+			return;
+		}
+
+		if ( ! (bool) $this->settings->get( 'image_optimization', false ) ) {
+			return;
+		}
+
+		// Convert eligible images and accumulate mappings.
+		foreach ( $asset_urls as $asset_url ) {
+			$relative = $this->asset_url_to_relative_path( $asset_url, $site_url );
+
+			if ( '' !== $relative && $this->image_optimizer->is_optimizable( $relative ) ) {
+				$this->image_optimizer->optimize_and_track( $output_dir, $relative );
+			}
+		}
+
+		// Rewrite HTML references using all accumulated replacements.
+		$replacements = $this->image_optimizer->get_replacements();
+
+		if ( empty( $replacements ) || '' === $output_path || ! file_exists( $output_path ) ) {
+			return;
+		}
+
+		$html = file_get_contents( $output_path );
+
+		if ( false === $html ) {
+			return;
+		}
+
+		$html = str_replace(
+			array_keys( $replacements ),
+			array_values( $replacements ),
+			$html,
+		);
+
+		file_put_contents( $output_path, $html );
 	}
 
 	private function is_css_url( string $url ): bool {

@@ -31,6 +31,9 @@ final class Settings {
 			'pagination_depth'   => 0,
 			'incremental_export' => false,
 			'pagefind_enabled' => false,
+			'auto_export_on_publish' => false,
+			'image_optimization'     => false,
+			'image_quality'          => 80,
 		];
 	}
 
@@ -88,6 +91,9 @@ final class Settings {
 			'pagination_depth'   => max( 0, (int) ( $values['pagination_depth'] ?? 0 ) ),
 			'incremental_export' => (bool) ( $values['incremental_export'] ?? false ),
 			'pagefind_enabled' => (bool) ( $values['pagefind_enabled'] ?? false ),
+			'auto_export_on_publish' => (bool) ( $values['auto_export_on_publish'] ?? false ),
+			'image_optimization'     => (bool) ( $values['image_optimization'] ?? false ),
+			'image_quality'          => max( 1, min( 100, (int) ( $values['image_quality'] ?? 80 ) ) ),
 		];
 	}
 }

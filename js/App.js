@@ -4,12 +4,14 @@ import Dashboard from './components/Dashboard';
 import Settings from './components/Settings';
 import ExportProgress from './components/ExportProgress';
 import ExportLog from './components/ExportLog';
+import BrokenLinks from './components/BrokenLinks';
 
 const TABS = [
 	{ name: 'dashboard', title: 'Dashboard' },
 	{ name: 'export', title: 'Export' },
 	{ name: 'settings', title: 'Settings' },
 	{ name: 'log', title: 'History' },
+	{ name: 'broken-links', title: 'Broken Links' },
 ];
 
 export default function App() {
@@ -29,6 +31,7 @@ export default function App() {
 				{ activeTab === 'export' && <ExportProgress /> }
 				{ activeTab === 'settings' && <Settings /> }
 				{ activeTab === 'log' && <ExportLog /> }
+			{ activeTab === 'broken-links' && <BrokenLinks /> }
 			</div>
 		</div>
 	);

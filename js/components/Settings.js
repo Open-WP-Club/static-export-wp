@@ -266,6 +266,35 @@ export default function Settings() {
 
 					<ToggleControl
 						__nextHasNoMarginBottom
+						label={ __( 'Auto-Export on Publish', 'static-export-wp' ) }
+						help={ __( 'Automatically run a background export when content is published or updated.', 'static-export-wp' ) }
+						checked={ !! form.auto_export_on_publish }
+						onChange={ ( val ) => updateField( 'auto_export_on_publish', val ) }
+					/>
+
+					<ToggleControl
+						__nextHasNoMarginBottom
+						label={ __( 'WebP Image Optimization', 'static-export-wp' ) }
+						help={ __( 'Convert JPEG and PNG images to WebP during export for smaller file sizes.', 'static-export-wp' ) }
+						checked={ !! form.image_optimization }
+						onChange={ ( val ) => updateField( 'image_optimization', val ) }
+					/>
+
+					{ !! form.image_optimization && (
+						<RangeControl
+							__next40pxDefaultSize
+							__nextHasNoMarginBottom
+							label={ __( 'Image Quality', 'static-export-wp' ) }
+							value={ form.image_quality || 80 }
+							onChange={ ( val ) => updateField( 'image_quality', val ) }
+							min={ 1 }
+							max={ 100 }
+							help={ __( 'WebP compression quality. Lower = smaller files. 80 is a good balance.', 'static-export-wp' ) }
+						/>
+					) }
+
+					<ToggleControl
+						__nextHasNoMarginBottom
 						label={ __( 'Email Notification', 'static-export-wp' ) }
 						help={ __( 'Send an email when a background export completes or fails.', 'static-export-wp' ) }
 						checked={ !! form.notify_enabled }

@@ -189,3 +189,17 @@
 	background: #f0f0f0;
 	color: #50575e;
 }
+
+/* Broken Links */
+.sewp-broken-links__table {
+	width: 100%;
+}
+
+.sewp-broken-links__table code {
+	font-size: 12px;
+	word-break: break-all;
+}
+
+.sewp-broken-links__na {
+	color: #a7aaad;
+}

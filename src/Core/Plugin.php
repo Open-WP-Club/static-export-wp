@@ -8,6 +8,7 @@ use StaticExportWP\Admin\AdminPage;
 use StaticExportWP\Admin\RestApi;
 use StaticExportWP\Background\ActionSchedulerBridge;
 use StaticExportWP\Background\BatchProcessor;
+use StaticExportWP\Background\PostPublishTrigger;
 use StaticExportWP\Background\ProgressTracker;
 use StaticExportWP\CLI\StaticExportCommand;
 use StaticExportWP\Crawler\BatchFetcher;
@@ -19,6 +20,7 @@ use StaticExportWP\Export\ContentHashStore;
 use StaticExportWP\Export\ExportManager;
 use StaticExportWP\Export\FileWriter;
 use StaticExportWP\Export\HtmlProcessor;
+use StaticExportWP\Export\ImageOptimizer;
 use StaticExportWP\Export\UrlRewriter;
 use StaticExportWP\Notification\ExportNotifier;
 use StaticExportWP\Search\PagefindRunner;
@@ -58,6 +60,11 @@ final class Plugin {
 		$scheduler          = new ActionSchedulerBridge();
 		$content_hash_store = new ContentHashStore();
 
+		$image_optimizer = new ImageOptimizer(
+			(int) $this->settings->get( 'image_quality', 80 ),
+			$logger,
+		);
+
 		$this->export_manager = new ExportManager(
 			$this->settings,
 			$url_discovery,
@@ -71,6 +78,7 @@ final class Plugin {
 			$logger,
 			$content_hash_store,
 			$batch_fetcher,
+			$image_optimizer,
 		);
 
 		$batch_processor = new BatchProcessor(
@@ -91,6 +99,10 @@ final class Plugin {
 		$pagefind = new PagefindRunner( $this->settings, $logger );
 		add_action( 'sewp_post_export_process', [ $pagefind, 'run' ] );
 
+		// Auto-export on publish.
+		$publish_trigger = new PostPublishTrigger( $this->export_manager, $progress_tracker, $this->settings );
+		$publish_trigger->register();
+
 		// DB migration check for updates without re-activation.
 		$this->maybe_upgrade_db();
 
@@ -100,7 +112,7 @@ final class Plugin {
 		}
 
 		// REST API must be available for both admin and frontend REST requests.
-		$rest_api = new RestApi( $this->export_manager, $this->settings, $url_discovery, $progress_tracker );
+		$rest_api = new RestApi( $this->export_manager, $this->settings, $url_discovery, $progress_tracker, $crawl_queue );
 		add_action( 'rest_api_init', [ $rest_api, 'register_routes' ] );
 
 		if ( defined( 'WP_CLI' ) && WP_CLI ) {

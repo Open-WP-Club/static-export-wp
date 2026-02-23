@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace StaticExportWP\Admin;
 
+use StaticExportWP\Admin\Controllers\BrokenLinkController;
 use StaticExportWP\Admin\Controllers\ExportController;
 use StaticExportWP\Admin\Controllers\LogController;
 use StaticExportWP\Admin\Controllers\SettingsController;
 use StaticExportWP\Background\ProgressTracker;
 use StaticExportWP\Core\Settings;
+use StaticExportWP\Crawler\CrawlQueue;
 use StaticExportWP\Crawler\UrlDiscovery;
 use StaticExportWP\Export\ExportManager;
 
@@ -21,6 +23,7 @@ final class RestApi {
 		private readonly Settings $settings,
 		private readonly UrlDiscovery $url_discovery,
 		private readonly ProgressTracker $progress,
+		private readonly CrawlQueue $crawl_queue,
 	) {}
 
 	public function register_routes(): void {
@@ -101,6 +104,20 @@ final class RestApi {
 			'methods'             => \WP_REST_Server::READABLE,
 			'callback'            => [ $log_controller, 'index' ],
 			'permission_callback' => [ $this, 'check_permissions' ],
+		] );
+
+		// Broken links.
+		$broken_link_controller = new BrokenLinkController( $this->crawl_queue );
+		register_rest_route( self::NAMESPACE, '/export/broken-links', [
+			'methods'             => \WP_REST_Server::READABLE,
+			'callback'            => [ $broken_link_controller, 'index' ],
+			'permission_callback' => [ $this, 'check_permissions' ],
+			'args'                => [
+				'export_id' => [
+					'required' => true,
+					'type'     => 'string',
+				],
+			],
 		] );
 	}
 

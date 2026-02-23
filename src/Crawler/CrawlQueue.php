@@ -16,9 +16,10 @@ final class CrawlQueue {
 	 *
 	 * @param string   $export_id
 	 * @param string[] $urls
+	 * @param string   $referrer  The page URL that linked to these URLs.
 	 * @return int Number of URLs enqueued (excludes duplicates).
 	 */
-	public function enqueue( string $export_id, array $urls ): int {
+	public function enqueue( string $export_id, array $urls, string $referrer = '' ): int {
 		global $wpdb;
 
 		if ( empty( $urls ) ) {
@@ -36,14 +37,15 @@ final class CrawlQueue {
 
 			foreach ( $chunk as $url ) {
 				$url_hash       = hash( 'sha256', $url );
-				$placeholders[] = '(%s, %s, %s, %s, NOW(), NOW())';
+				$placeholders[] = '(%s, %s, %s, %s, %s, NOW(), NOW())';
 				$values[]       = $export_id;
 				$values[]       = $url;
 				$values[]       = $url_hash;
 				$values[]       = 'pending';
+				$values[]       = $referrer;
 			}
 
-			$sql = "INSERT IGNORE INTO {$table} (export_id, url, url_hash, status, created_at, updated_at) VALUES "
+			$sql = "INSERT IGNORE INTO {$table} (export_id, url, url_hash, status, referrer, created_at, updated_at) VALUES "
 				. implode( ', ', $placeholders );
 
 			// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- placeholders built dynamically above.
@@ -178,6 +180,26 @@ final class CrawlQueue {
 		) );
 
 		return $count > 0;
+	}
+
+	/**
+	 * Get broken links (failed URLs with HTTP status >= 400) for an export.
+	 *
+	 * @return object[] Array of {url, http_status, error_message, referrer}.
+	 */
+	public function get_broken_links( string $export_id ): array {
+		global $wpdb;
+
+		$table = $this->table();
+		$rows  = $wpdb->get_results( $wpdb->prepare(
+			"SELECT url, http_status, error_message, referrer
+			FROM {$table}
+			WHERE export_id = %s AND status = 'failed' AND http_status >= 400
+			ORDER BY http_status DESC, id ASC",
+			$export_id,
+		) );
+
+		return $rows ?: [];
 	}
 
 	public function clear( string $export_id ): void {
