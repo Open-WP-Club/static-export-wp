@@ -9,8 +9,8 @@ use StaticExportWP\Export\ExportManager;
 
 final class PostPublishTrigger {
 
-	private const DEBOUNCE_KEY     = 'sewp_auto_export_debounce';
-	private const DEBOUNCE_SECONDS = 30;
+	private const string DEBOUNCE_KEY = 'sewp_auto_export_debounce';
+	private const int DEBOUNCE_SECONDS = 30;
 
 	public function __construct(
 		private readonly ExportManager $export_manager,

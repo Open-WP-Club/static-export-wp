@@ -10,7 +10,7 @@ use StaticExportWP\Utility\Logger;
 
 final class NetlifyDeployer implements Deployer {
 
-	private const API_BASE = 'https://api.netlify.com/api/v1';
+	private const string API_BASE = 'https://api.netlify.com/api/v1';
 
 	public function __construct(
 		private readonly Settings $settings,

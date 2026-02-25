@@ -6,7 +6,7 @@ namespace StaticExportWP\Core;
 
 final class Settings {
 
-	public const OPTION_KEY = 'sewp_settings';
+	public const string OPTION_KEY = 'sewp_settings';
 
 	public function defaults(): array {
 		$upload_dir = wp_upload_dir();

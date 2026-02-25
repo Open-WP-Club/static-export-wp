@@ -6,7 +6,7 @@ namespace StaticExportWP\Core;
 
 final class Schema {
 
-	public const DB_VERSION = '1.3.0';
+	public const string DB_VERSION = '1.3.0';
 
 	public static function create_tables(): void {
 		global $wpdb;

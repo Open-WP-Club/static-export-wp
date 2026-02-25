@@ -17,7 +17,7 @@ use StaticExportWP\Notification\WebhookNotifier;
 
 final class RestApi {
 
-	private const NAMESPACE = 'sewp/v1';
+	private const string NAMESPACE = 'sewp/v1';
 
 	public function __construct(
 		private readonly ExportManager $export_manager,

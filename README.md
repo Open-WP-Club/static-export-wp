@@ -22,7 +22,7 @@ Export your WordPress site as static HTML files. Crawls every page like a browse
 ```bash
 # Clone the repo into your plugins directory
 cd wp-content/plugins/
-git clone https://github.com/your-username/static-export-wp.git
+git clone https://github.com/open-wp-club/static-export-wp.git
 cd static-export-wp
 
 # Install dependencies

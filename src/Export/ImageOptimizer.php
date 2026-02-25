@@ -8,7 +8,7 @@ use StaticExportWP\Utility\Logger;
 
 final class ImageOptimizer {
 
-	private const OPTIMIZABLE_EXTENSIONS = [ 'jpg', 'jpeg', 'png' ];
+	private const array OPTIMIZABLE_EXTENSIONS = [ 'jpg', 'jpeg', 'png' ];
 
 	/** @var array<string, string> Original relative path => WebP relative path. */
 	private array $replacements = [];

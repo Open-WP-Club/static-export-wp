@@ -6,7 +6,7 @@ namespace StaticExportWP\Export;
 
 final class SizeReport {
 
-	private const CATEGORY_MAP = [
+	private const array CATEGORY_MAP = [
 		// HTML.
 		'html' => 'html',
 		'htm'  => 'html',

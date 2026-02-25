@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace StaticExportWP\Deploy;
 
-final class DeployResult {
+final readonly class DeployResult {
 
 	private function __construct(
-		public readonly bool $success,
-		public readonly string $message,
-		public readonly array $context = [],
+		public bool $success,
+		public string $message,
+		public array $context = [],
 	) {}
 
 	public static function ok( string $message, array $context = [] ): self {

@@ -6,7 +6,7 @@ namespace StaticExportWP\Background;
 
 final class ProgressTracker {
 
-	private const OPTION_KEY = 'sewp_export_progress';
+	private const string OPTION_KEY = 'sewp_export_progress';
 
 	public function start( string $export_id, int $total ): void {
 		update_option( self::OPTION_KEY, [

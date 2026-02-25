@@ -6,7 +6,7 @@ namespace StaticExportWP\Background;
 
 final class ActionSchedulerBridge {
 
-	private const HOOK = 'sewp_process_batch';
+	private const string HOOK = 'sewp_process_batch';
 
 	/**
 	 * Schedule the next batch processing action.
