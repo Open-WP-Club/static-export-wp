@@ -113,6 +113,36 @@ final class PostPublishTriggerTest extends TestCase {
 		$this->assertNull( $this->progress->get() );
 	}
 
+	// two rapid publishes must not start two exports.
+
+	public function test_second_call_blocked_by_debounce_after_first_fires(): void {
+		$this->set_option( 'sewp_settings', [
+			'auto_export_on_publish' => true,
+			'post_types'             => [ 'post', 'page' ],
+		] );
+
+		$post = new \WP_Post();
+
+		// First publish — should start an export and set the debounce transient.
+		$this->trigger->handle( 'publish', 'draft', $post );
+		$first_export = $this->progress->get();
+		$this->assertNotNull( $first_export, 'First publish should start an export' );
+		$first_export_id = $first_export['export_id'];
+
+		// Simulate the export finishing so is_running() returns false again.
+		$this->progress->finish( $first_export_id, 'completed' );
+		$this->assertFalse( $this->progress->is_running() );
+
+		// Second publish arrives within the debounce window — debounce transient is still set.
+		// A new export must NOT start.
+		$this->trigger->handle( 'publish', 'draft', $post );
+		$after_second = $this->progress->get();
+
+		// Progress should reflect the completed first export, not a new running one.
+		$this->assertNotSame( 'running', $after_second['status'] ?? null,
+			'Second publish within debounce window must not start a new export' );
+	}
+
 	public function test_starts_background_export_on_valid_trigger(): void {
 		$this->set_option( 'sewp_settings', [
 			'auto_export_on_publish' => true,

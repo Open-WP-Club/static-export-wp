@@ -202,6 +202,25 @@ final class CrawlQueue {
 		return $rows ?: [];
 	}
 
+	/**
+	 * Reset items stuck in 'processing' longer than $minutes back to 'pending'.
+	 *
+	 * Recovers from PHP crashes or timeouts that left items orphaned mid-batch.
+	 */
+	public function reset_stale_processing( string $export_id, int $minutes = 30 ): int {
+		global $wpdb;
+
+		$table = $this->table();
+		return (int) $wpdb->query( $wpdb->prepare(
+			"UPDATE {$table}
+			SET status = 'pending', updated_at = NOW()
+			WHERE export_id = %s AND status = 'processing'
+			AND updated_at < DATE_SUB(NOW(), INTERVAL %d MINUTE)",
+			$export_id,
+			$minutes,
+		) );
+	}
+
 	public function clear( string $export_id ): void {
 		global $wpdb;
 		$wpdb->delete( $this->table(), [ 'export_id' => $export_id ], [ '%s' ] );

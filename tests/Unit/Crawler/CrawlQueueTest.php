@@ -141,4 +141,34 @@ final class CrawlQueueTest extends TestCase {
 		$delete_calls = array_filter( $this->wpdb->_call_log, fn( $c ) => $c['method'] === 'delete' );
 		$this->assertCount( 1, $delete_calls );
 	}
+
+	// Orphaned 'processing' URLs after a PHP crash.
+
+	public function test_reset_stale_processing_returns_count(): void {
+		$this->wpdb->_query_returns = [ 3 ];
+
+		$count = $this->queue->reset_stale_processing( 'exp-1', 30 );
+
+		$this->assertSame( 3, $count );
+	}
+
+	public function test_reset_stale_processing_generates_correct_sql(): void {
+		$this->queue->reset_stale_processing( 'exp-1', 15 );
+
+		$query_calls = array_filter( $this->wpdb->_call_log, fn( $c ) => $c['method'] === 'query' );
+		$this->assertNotEmpty( $query_calls );
+
+		$sql = array_values( $query_calls )[0]['query'];
+		$this->assertStringContainsString( "status = 'pending'", $sql );
+		$this->assertStringContainsString( "status = 'processing'", $sql );
+		$this->assertStringContainsString( 'INTERVAL', $sql );
+	}
+
+	public function test_reset_stale_processing_returns_zero_when_none_stuck(): void {
+		$this->wpdb->_query_returns = [ 0 ];
+
+		$count = $this->queue->reset_stale_processing( 'exp-1' );
+
+		$this->assertSame( 0, $count );
+	}
 }

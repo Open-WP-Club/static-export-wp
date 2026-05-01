@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace StaticExportWP\Export;
 
+use StaticExportWP\Utility\Logger;
 use StaticExportWP\Utility\PathHelper;
 
 final class FileWriter {
@@ -13,6 +14,7 @@ final class FileWriter {
 
 	public function __construct(
 		private readonly PathHelper $path_helper,
+		private readonly Logger $logger = new Logger(),
 	) {}
 
 	/**
@@ -43,6 +45,7 @@ final class FileWriter {
 			return $relative_path;
 		}
 
+		$this->logger->error( 'Failed to write HTML file', [ 'path' => $full_path, 'url' => $url ] );
 		return false;
 	}
 
