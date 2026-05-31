@@ -13,4 +13,6 @@ webpack.config.js
 composer.json
 composer.lock
 phpunit.xml.dist
+phpstan.neon
+phpstan-bootstrap.php
 README.md

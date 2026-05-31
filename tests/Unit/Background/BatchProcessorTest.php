@@ -95,19 +95,37 @@ final class BatchProcessorTest extends TestCase {
 	}
 
 	public function test_finalizes_when_no_pending_batch(): void {
-		// Start an export in progress.
 		$this->progress->start( 'exp-1', 10 );
 
-		// wpdb stub returns empty results for get_next_batch.
-		// (default behaviour -- no _get_results_returns queued)
+		// get_next_batch() returns empty (no pending rows).
+		// retry_failed() UPDATE returns 0 (nothing to retry).
+		$GLOBALS['wpdb']->_query_returns[] = 0;
 
 		$this->processor->handle( 'exp-1' );
 
-		// After finalization, progress status should change from 'running'.
 		$data = $this->progress->get();
 		$this->assertNotNull( $data );
-		// finalize() calls progress->finish() which sets status to 'completed' or 'failed'.
 		$this->assertContains( $data['status'], [ 'completed', 'failed' ] );
+	}
+
+	public function test_schedules_next_batch_when_failed_urls_can_be_retried(): void {
+		$this->progress->start( 'exp-1', 10 );
+
+		// get_next_batch() returns empty.
+		// retry_failed() UPDATE returns 2 (two URLs reset to pending).
+		$GLOBALS['wpdb']->_query_returns[] = 2;
+
+		$this->processor->handle( 'exp-1' );
+
+		// Status should still be 'running' — export was not finalized.
+		$data = $this->progress->get();
+		$this->assertNotNull( $data );
+		$this->assertSame( 'running', $data['status'] );
+
+		// A cron event should have been scheduled for the next batch.
+		global $_wp_cron_events;
+		$batch_events = array_filter( $_wp_cron_events, fn( $e ) => $e['hook'] === 'sewp_process_batch' );
+		$this->assertNotEmpty( $batch_events, 'Expected a batch cron event after retry' );
 	}
 
 	public function test_processes_batch_and_schedules_next(): void {

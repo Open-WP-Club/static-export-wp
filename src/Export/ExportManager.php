@@ -95,44 +95,48 @@ final class ExportManager {
 	 * @param callable|null $on_progress Called after each URL with (completed, total, current_url).
 	 */
 	public function run_sync( array $overrides = [], ?callable $on_progress = null ): ExportJob {
-		$job        = $this->start( $overrides );
-		$batch_size = (int) $this->settings->get( 'batch_size', 10 );
-		$rate_limit = max( 1, (int) $this->settings->get( 'rate_limit', 50 ) );
-		$delay_us   = (int) ( 1_000_000 / $rate_limit );
+		$job         = $this->start( $overrides );
+		$batch_size  = (int) $this->settings->get( 'batch_size', 10 );
+		$rate_limit  = max( 1, (int) $this->settings->get( 'rate_limit', 50 ) );
+		$delay_us    = (int) ( 1_000_000 / $rate_limit );
+		$max_retries = (int) $this->settings->get( 'max_retries', 3 );
+		$cancelled   = false;
 
-		while ( $this->crawl_queue->has_pending( $job->export_id ) ) {
-			if ( $this->progress->is_cancelled( $job->export_id ) ) {
-				$this->progress->update_status( $job->export_id, 'cancelled' );
-				break;
+		// Process all pending URLs, then retry failed ones, repeat until done.
+		do {
+			while ( $this->crawl_queue->has_pending( $job->export_id ) ) {
+				if ( $this->progress->is_cancelled( $job->export_id ) ) {
+					$this->progress->update_status( $job->export_id, 'cancelled' );
+					$cancelled = true;
+					break;
+				}
+
+				$batch       = $this->crawl_queue->get_next_batch( $job->export_id, $batch_size );
+				$batch_start = microtime( true );
+
+				$this->process_batch( $job, $batch );
+
+				// Honour rate_limit: sleep for any remaining time in the batch window.
+				$elapsed_us  = (int) ( ( microtime( true ) - $batch_start ) * 1_000_000 );
+				$expected_us = count( $batch ) * $delay_us;
+				if ( $elapsed_us < $expected_us ) {
+					usleep( $expected_us - $elapsed_us );
+				}
+
+				$counts   = $this->crawl_queue->get_counts( $job->export_id );
+				$last_url = end( $batch ) ? end( $batch )->url : '';
+				$this->progress->update_counts(
+					$job->export_id,
+					$counts['completed'],
+					$counts['failed'],
+					$last_url,
+				);
+
+				if ( $on_progress ) {
+					$on_progress( $counts['completed'], $counts['total'], $last_url );
+				}
 			}
-
-			$batch      = $this->crawl_queue->get_next_batch( $job->export_id, $batch_size );
-			$batch_start = microtime( true );
-
-			// Use parallel fetching when available.
-			$this->process_batch( $job, $batch );
-
-			// Honour rate_limit: sleep for any remaining time in the batch window.
-			$elapsed_us  = (int) ( ( microtime( true ) - $batch_start ) * 1_000_000 );
-			$expected_us = count( $batch ) * $delay_us;
-			if ( $elapsed_us < $expected_us ) {
-				usleep( $expected_us - $elapsed_us );
-			}
-
-			// Update progress once per batch instead of per URL.
-			$counts   = $this->crawl_queue->get_counts( $job->export_id );
-			$last_url = end( $batch ) ? end( $batch )->url : '';
-			$this->progress->update_counts(
-				$job->export_id,
-				$counts['completed'],
-				$counts['failed'],
-				$last_url,
-			);
-
-			if ( $on_progress ) {
-				$on_progress( $counts['completed'], $counts['total'], $last_url );
-			}
-		}
+		} while ( ! $cancelled && $this->crawl_queue->retry_failed( $job->export_id, $max_retries ) > 0 );
 
 		$this->finalize( $job );
 
@@ -387,12 +391,10 @@ final class ExportManager {
 	}
 
 	/**
-	 * Finalize an export: retry failed, generate extras, update status.
+	 * Finalize an export: generate extras, update status, deploy.
+	 * Retries are handled by the caller (run_sync / BatchProcessor) before finalize is invoked.
 	 */
 	public function finalize( ExportJob $job ): void {
-		$max_retries = (int) $this->settings->get( 'max_retries', 3 );
-		$this->crawl_queue->retry_failed( $job->export_id, $max_retries );
-
 		// Generate extra files.
 		$this->generate_404_page( $job );
 		$this->generate_robots_txt( $job );

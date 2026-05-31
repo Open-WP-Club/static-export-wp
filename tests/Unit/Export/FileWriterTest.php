@@ -45,6 +45,41 @@ final class FileWriterTest extends TestCase {
 		}
 	}
 
+	// ── initialize_output_dir ─────────────────────────────────────────────
+
+	public function test_initialize_output_dir_creates_htaccess(): void {
+		$dir = sys_get_temp_dir() . '/sewp_init_' . uniqid();
+
+		$this->writer->initialize_output_dir( $dir );
+
+		$this->assertFileExists( $dir . '/.htaccess' );
+		$this->assertStringContainsString(
+			'Options -Indexes',
+			(string) file_get_contents( $dir . '/.htaccess' ),
+		);
+
+		// Cleanup.
+		@unlink( $dir . '/.htaccess' );
+		@rmdir( $dir );
+	}
+
+	public function test_initialize_output_dir_is_idempotent(): void {
+		$dir = sys_get_temp_dir() . '/sewp_init_idem_' . uniqid();
+
+		$this->writer->initialize_output_dir( $dir );
+		$mtime_first = filemtime( $dir . '/.htaccess' );
+
+		// Second call must not overwrite.
+		$this->writer->initialize_output_dir( $dir );
+		$mtime_second = filemtime( $dir . '/.htaccess' );
+
+		$this->assertSame( $mtime_first, $mtime_second, 'Second call must not touch existing .htaccess' );
+
+		// Cleanup.
+		@unlink( $dir . '/.htaccess' );
+		@rmdir( $dir );
+	}
+
 	// ── write_html ─────────────────────────────────────────────────────────
 
 	public function test_write_html_returns_relative_path_on_success(): void {

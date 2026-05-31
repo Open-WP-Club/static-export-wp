@@ -23,7 +23,6 @@ final class BatchProcessor {
 	 * This is called by Action Scheduler or wp_cron.
 	 */
 	public function handle( string $export_id ): void {
-		// Check if export has been cancelled.
 		if ( $this->progress->is_cancelled( $export_id ) ) {
 			return;
 		}
@@ -33,19 +32,29 @@ final class BatchProcessor {
 			return;
 		}
 
-		$batch_size = (int) $this->settings->get( 'batch_size', 10 );
-		$batch      = $this->crawl_queue->get_next_batch( $export_id, $batch_size );
+		$batch_size  = (int) $this->settings->get( 'batch_size', 10 );
+		$max_retries = (int) $this->settings->get( 'max_retries', 3 );
+		$batch       = $this->crawl_queue->get_next_batch( $export_id, $batch_size );
 
 		if ( empty( $batch ) ) {
-			// No more pending URLs — finalize.
-			$this->export_manager->finalize( $job );
+			// No pending items — retry failed URLs before deciding to finalize.
+			$this->maybe_retry_or_finalize( $export_id, $job, $max_retries );
 			return;
 		}
 
-		// Process entire batch with parallel HTTP fetching.
+		// Rate limiting: track batch duration and sleep for remainder.
+		$rate_limit  = max( 1, (int) $this->settings->get( 'rate_limit', 50 ) );
+		$delay_us    = (int) ( 1_000_000 / $rate_limit );
+		$batch_start = microtime( true );
+
 		$this->export_manager->process_batch( $job, $batch );
 
-		// Update progress once after the whole batch.
+		$elapsed_us  = (int) ( ( microtime( true ) - $batch_start ) * 1_000_000 );
+		$expected_us = count( $batch ) * $delay_us;
+		if ( $elapsed_us < $expected_us ) {
+			usleep( $expected_us - $elapsed_us );
+		}
+
 		$counts   = $this->crawl_queue->get_counts( $export_id );
 		$last_url = end( $batch ) ? end( $batch )->url : '';
 		$this->progress->update_counts(
@@ -55,8 +64,19 @@ final class BatchProcessor {
 			$last_url,
 		);
 
-		// Schedule next batch if there are still pending URLs.
 		if ( $this->crawl_queue->has_pending( $export_id ) ) {
+			$this->scheduler->schedule_batch( $export_id );
+		} else {
+			$this->maybe_retry_or_finalize( $export_id, $job, $max_retries );
+		}
+	}
+
+	/**
+	 * Retry any failed URLs; if there are retried items schedule another batch,
+	 * otherwise finalize the export.
+	 */
+	private function maybe_retry_or_finalize( string $export_id, \StaticExportWP\Export\ExportJob $job, int $max_retries ): void {
+		if ( $this->crawl_queue->retry_failed( $export_id, $max_retries ) > 0 ) {
 			$this->scheduler->schedule_batch( $export_id );
 		} else {
 			$this->export_manager->finalize( $job );

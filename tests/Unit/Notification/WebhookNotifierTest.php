@@ -149,6 +149,48 @@ final class WebhookNotifierTest extends TestCase {
 		$this->assertTrue( $result->get_data()['success'] );
 	}
 
+	public function test_send_test_blocked_for_loopback_ip(): void {
+		$this->set_option( 'sewp_settings', [
+			'webhook_url'    => 'http://127.0.0.1/webhook',
+			'webhook_secret' => '',
+		] );
+
+		$settings = new Settings();
+		$notifier = new WebhookNotifier( $settings );
+		$result   = $notifier->send_test();
+
+		$this->assertSame( 502, $result->get_status() );
+		$this->assertFalse( $result->get_data()['success'] );
+	}
+
+	public function test_send_test_blocked_for_private_class_a(): void {
+		$this->set_option( 'sewp_settings', [
+			'webhook_url'    => 'http://10.0.0.1/webhook',
+			'webhook_secret' => '',
+		] );
+
+		$settings = new Settings();
+		$notifier = new WebhookNotifier( $settings );
+		$result   = $notifier->send_test();
+
+		$this->assertSame( 502, $result->get_status() );
+		$this->assertFalse( $result->get_data()['success'] );
+	}
+
+	public function test_send_test_blocked_for_link_local(): void {
+		$this->set_option( 'sewp_settings', [
+			'webhook_url'    => 'http://169.254.169.254/latest/meta-data/',
+			'webhook_secret' => '',
+		] );
+
+		$settings = new Settings();
+		$notifier = new WebhookNotifier( $settings );
+		$result   = $notifier->send_test();
+
+		$this->assertSame( 502, $result->get_status() );
+		$this->assertFalse( $result->get_data()['success'] );
+	}
+
 	public function test_send_test_returns_error_on_non_200(): void {
 		global $_wp_remote_responses;
 		$webhook_url = 'https://hooks.example.com/webhook';
