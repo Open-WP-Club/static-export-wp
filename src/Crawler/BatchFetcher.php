@@ -32,7 +32,7 @@ final class BatchFetcher {
 			'connect_timeout'  => min( $timeout, 10 ),
 			'follow_redirects' => true,
 			'redirects'        => 5,
-			'verify'           => false,
+			'verify'           => (bool) apply_filters( 'sewp_sslverify', true ),
 		];
 
 		$headers = [

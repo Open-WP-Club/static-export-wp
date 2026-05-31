@@ -36,3 +36,9 @@ jobs:
 
       - name: Run tests
         run: composer test
+
+      - name: Run PHPCS
+        run: composer phpcs
+
+      - name: Run PHPStan
+        run: vendor/bin/phpstan analyse --no-progress --memory-limit=512M

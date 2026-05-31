@@ -52,6 +52,9 @@ final class ExportManager {
 
 		$this->logger->info( 'Starting export', [ 'export_id' => $export_id ] );
 
+		// Prepare output directory (creates it and writes .htaccess).
+		$this->file_writer->initialize_output_dir( $output_dir );
+
 		// Discover URLs.
 		$urls = $this->url_discovery->discover();
 		$this->logger->info( 'Discovered URLs', [ 'count' => count( $urls ) ] );
@@ -94,6 +97,8 @@ final class ExportManager {
 	public function run_sync( array $overrides = [], ?callable $on_progress = null ): ExportJob {
 		$job        = $this->start( $overrides );
 		$batch_size = (int) $this->settings->get( 'batch_size', 10 );
+		$rate_limit = max( 1, (int) $this->settings->get( 'rate_limit', 50 ) );
+		$delay_us   = (int) ( 1_000_000 / $rate_limit );
 
 		while ( $this->crawl_queue->has_pending( $job->export_id ) ) {
 			if ( $this->progress->is_cancelled( $job->export_id ) ) {
@@ -101,14 +106,22 @@ final class ExportManager {
 				break;
 			}
 
-			$batch = $this->crawl_queue->get_next_batch( $job->export_id, $batch_size );
+			$batch      = $this->crawl_queue->get_next_batch( $job->export_id, $batch_size );
+			$batch_start = microtime( true );
 
 			// Use parallel fetching when available.
 			$this->process_batch( $job, $batch );
 
+			// Honour rate_limit: sleep for any remaining time in the batch window.
+			$elapsed_us  = (int) ( ( microtime( true ) - $batch_start ) * 1_000_000 );
+			$expected_us = count( $batch ) * $delay_us;
+			if ( $elapsed_us < $expected_us ) {
+				usleep( $expected_us - $elapsed_us );
+			}
+
 			// Update progress once per batch instead of per URL.
-			$counts    = $this->crawl_queue->get_counts( $job->export_id );
-			$last_url  = end( $batch ) ? end( $batch )->url : '';
+			$counts   = $this->crawl_queue->get_counts( $job->export_id );
+			$last_url = end( $batch ) ? end( $batch )->url : '';
 			$this->progress->update_counts(
 				$job->export_id,
 				$counts['completed'],

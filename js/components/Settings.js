@@ -258,15 +258,20 @@ export default function Settings() {
 					/>
 
 					{ form.deploy_method === 'command' && (
-						<TextControl
-							__next40pxDefaultSize
-							__nextHasNoMarginBottom
-							label={ __( 'Deploy Command', 'static-export-wp' ) }
-							value={ form.deploy_command || '' }
-							onChange={ ( val ) => updateField( 'deploy_command', val ) }
-							placeholder="rsync -avz {{output_dir}}/ user@host:/var/www/"
-							help={ __( 'Shell command to run after export. Use {{output_dir}} as placeholder for the export path.', 'static-export-wp' ) }
-						/>
+						<>
+							<Notice status="warning" isDismissible={ false }>
+								{ __( 'Shell commands run as the web server user. Only enter commands you fully trust. Avoid user-supplied input.', 'static-export-wp' ) }
+							</Notice>
+							<TextControl
+								__next40pxDefaultSize
+								__nextHasNoMarginBottom
+								label={ __( 'Deploy Command', 'static-export-wp' ) }
+								value={ form.deploy_command || '' }
+								onChange={ ( val ) => updateField( 'deploy_command', val ) }
+								placeholder="rsync -avz {{output_dir}}/ user@host:/var/www/"
+								help={ __( 'Shell command to run after export. Use {{output_dir}} as placeholder for the export path.', 'static-export-wp' ) }
+							/>
+						</>
 					) }
 
 					{ form.deploy_method === 'git' && (

@@ -16,7 +16,7 @@ final class Fetcher {
 		$args = [
 			'timeout'     => $this->settings->get( 'timeout', 30 ),
 			'redirection' => 5,
-			'sslverify'   => false,
+			'sslverify'   => (bool) apply_filters( 'sewp_sslverify', true ),
 			'headers'     => [
 				'User-Agent' => 'StaticExportWP/' . SEWP_VERSION,
 			],

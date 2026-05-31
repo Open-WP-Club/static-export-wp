@@ -18,6 +18,26 @@ final class FileWriter {
 	) {}
 
 	/**
+	 * Prepare the output directory: create it and write a .htaccess that prevents directory listing.
+	 */
+	public function initialize_output_dir( string $output_dir ): void {
+		$this->path_helper->ensure_directory( $output_dir );
+
+		$htaccess = trailingslashit( $output_dir ) . '.htaccess';
+		if ( file_exists( $htaccess ) ) {
+			return;
+		}
+
+		global $wp_filesystem;
+		if ( empty( $wp_filesystem ) ) {
+			require_once ABSPATH . 'wp-admin/includes/file.php';
+			WP_Filesystem();
+		}
+
+		$wp_filesystem->put_contents( $htaccess, "Options -Indexes\n", FS_CHMOD_FILE );
+	}
+
+	/**
 	 * Write HTML content to the output directory.
 	 *
 	 * @return string|false The relative file path on success, false on failure.
@@ -101,7 +121,7 @@ final class FileWriter {
 			// Remote or not found locally — fetch via HTTP.
 			$response = wp_remote_get( $asset_url, [
 				'timeout'   => 30,
-				'sslverify' => false,
+				'sslverify' => (bool) apply_filters( 'sewp_sslverify', true ),
 			] );
 
 			if ( ! is_wp_error( $response ) && 200 === wp_remote_retrieve_response_code( $response ) ) {

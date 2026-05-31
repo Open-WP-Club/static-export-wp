@@ -96,11 +96,62 @@ final class WebhookNotifier {
 	}
 
 	/**
+	 * Returns false if the URL targets a private or reserved IP address (SSRF protection).
+	 *
+	 * Literal IPs are checked directly. Hostnames are resolved; if DNS fails we
+	 * allow the request — the HTTP stack will reject it naturally. This avoids
+	 * false-positives in test environments while still blocking obvious attacks
+	 * like http://169.254.169.254/ (AWS metadata) or http://192.168.1.1/.
+	 */
+	private function is_safe_url( string $url ): bool {
+		$scheme = wp_parse_url( $url, PHP_URL_SCHEME );
+		if ( ! in_array( $scheme, [ 'http', 'https' ], true ) ) {
+			return false;
+		}
+
+		$host = wp_parse_url( $url, PHP_URL_HOST );
+		if ( empty( $host ) ) {
+			return false;
+		}
+
+		// Strip IPv6 brackets if present.
+		$host = trim( $host, '[]' );
+
+		// If the host is already an IP address, check it directly.
+		if ( filter_var( $host, FILTER_VALIDATE_IP ) ) {
+			return (bool) filter_var(
+				$host,
+				FILTER_VALIDATE_IP,
+				FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE,
+			);
+		}
+
+		// Resolve hostname; if DNS fails allow the request (HTTP will fail naturally).
+		$ip = gethostbyname( $host );
+		if ( $ip === $host ) {
+			return true;
+		}
+
+		return (bool) filter_var(
+			$ip,
+			FILTER_VALIDATE_IP,
+			FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE,
+		);
+	}
+
+	/**
 	 * Send a webhook payload.
 	 *
 	 * @return array|\WP_Error
 	 */
 	private function send( string $url, string $event, array $payload ): array|\WP_Error {
+		if ( ! $this->is_safe_url( $url ) ) {
+			return new \WP_Error(
+				'sewp_ssrf_blocked',
+				__( 'Webhook URL resolves to a private or reserved address.', 'static-export-wp' ),
+			);
+		}
+
 		$body = wp_json_encode( $payload );
 
 		$headers = [
