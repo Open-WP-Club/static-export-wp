@@ -12,7 +12,8 @@ trait WpStubHelpers {
 	protected function reset_wp_state(): void {
 		global $_wp_options, $_wp_remote_responses, $_wp_mail_log, $_wp_transients,
 			$_wp_cron_events, $_wp_actions, $_wp_filters, $_wp_home_url, $_wp_bloginfo,
-			$_wp_upload_dir, $_wp_rest_routes, $_wp_current_user_can, $_wp_action_hooks;
+			$_wp_upload_dir, $_wp_rest_routes, $_wp_current_user_can, $_wp_action_hooks,
+			$_wp_is_admin, $_wp_dbdelta_calls;
 
 		$_wp_options          = [];
 		$_wp_remote_responses = [];
@@ -27,6 +28,8 @@ trait WpStubHelpers {
 		$_wp_rest_routes      = [];
 		$_wp_current_user_can = [];
 		$_wp_action_hooks     = [];
+		$_wp_is_admin         = false;
+		$_wp_dbdelta_calls    = [];
 		$_wp_upload_dir       = [
 			'basedir' => '/tmp/wp-uploads',
 			'baseurl' => 'https://example.com/wp-content/uploads',
@@ -41,6 +44,11 @@ trait WpStubHelpers {
 		$_wp_current_user_can[ $capability ] = $can;
 	}
 
+	protected function set_is_admin( bool $is_admin ): void {
+		global $_wp_is_admin;
+		$_wp_is_admin = $is_admin;
+	}
+
 	protected function set_home_url( string $url ): void {
 		global $_wp_home_url;
 		$_wp_home_url = $url;
@@ -51,7 +59,7 @@ trait WpStubHelpers {
 		$_wp_options[ $key ] = $value;
 	}
 
-	protected function set_remote_response( string $url, array|WP_Error $response ): void {
+	protected function set_remote_response( string $url, array|\WP_Error $response ): void {
 		global $_wp_remote_responses;
 		$_wp_remote_responses[ $url ] = $response;
 	}

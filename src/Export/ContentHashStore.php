@@ -29,6 +29,7 @@ final class ContentHashStore {
 
 		return $wpdb->get_var(
 			$wpdb->prepare(
+				// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- {$table} is a fixed, plugin-controlled identifier, not user input.
 				"SELECT content_hash FROM {$table} WHERE url_hash = %s",
 				$url_hash,
 			)
@@ -52,6 +53,7 @@ final class ContentHashStore {
 
 		$wpdb->query(
 			$wpdb->prepare(
+				// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- {$table} is a fixed, plugin-controlled identifier, not user input.
 				"INSERT INTO {$table} (url_hash, url, content_hash, output_path, last_export_id, updated_at)
 			VALUES (%s, %s, %s, %s, %s, %s)
 			ON DUPLICATE KEY UPDATE content_hash = VALUES(content_hash), output_path = VALUES(output_path), last_export_id = VALUES(last_export_id), updated_at = VALUES(updated_at)",

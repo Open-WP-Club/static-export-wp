@@ -86,6 +86,7 @@ final class CrawlQueue {
 		$table = $this->table();
 		$rows  = $wpdb->get_results(
 			$wpdb->prepare(
+				// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- {$table} is a fixed, plugin-controlled identifier, not user input.
 				"SELECT * FROM {$table}
 			WHERE export_id = %s AND status = 'pending'
 			ORDER BY id ASC
@@ -101,13 +102,14 @@ final class CrawlQueue {
 			$placeholders = implode( ',', array_fill( 0, count( $ids ), '%d' ) );
 			$wpdb->query(
 				$wpdb->prepare(
+					// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare -- {$table} is fixed; {$placeholders} expands to literal %d tokens consumed by prepare() via ...$ids.
 					"UPDATE {$table} SET status = 'processing', updated_at = NOW() WHERE id IN ({$placeholders})",
 					...$ids,
 				)
 			);
 		}
 
-		return $rows ?: array();
+		return $rows ? $rows : array();
 	}
 
 	/**
@@ -151,6 +153,7 @@ final class CrawlQueue {
 		$table = $this->table();
 		$wpdb->query(
 			$wpdb->prepare(
+				// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- {$table} is a fixed, plugin-controlled identifier, not user input.
 				"UPDATE {$table}
 			SET status = 'failed', error_message = %s, http_status = %d,
 				attempts = attempts + 1, updated_at = NOW()
@@ -175,6 +178,7 @@ final class CrawlQueue {
 		$table = $this->table();
 		return (int) $wpdb->query(
 			$wpdb->prepare(
+				// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- {$table} is a fixed, plugin-controlled identifier, not user input.
 				"UPDATE {$table}
 			SET status = 'pending', updated_at = NOW()
 			WHERE export_id = %s AND status = 'failed' AND attempts < %d",
@@ -196,6 +200,7 @@ final class CrawlQueue {
 		$table   = $this->table();
 		$results = $wpdb->get_results(
 			$wpdb->prepare(
+				// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- {$table} is a fixed, plugin-controlled identifier, not user input.
 				"SELECT status, COUNT(*) as cnt FROM {$table} WHERE export_id = %s GROUP BY status",
 				$export_id,
 			)
@@ -230,6 +235,7 @@ final class CrawlQueue {
 		$table = $this->table();
 		$count = (int) $wpdb->get_var(
 			$wpdb->prepare(
+				// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- {$table} is a fixed, plugin-controlled identifier, not user input.
 				"SELECT COUNT(*) FROM {$table} WHERE export_id = %s AND status IN ('pending', 'processing')",
 				$export_id,
 			)
@@ -250,15 +256,15 @@ final class CrawlQueue {
 		$table = $this->table();
 		$rows  = $wpdb->get_results(
 			$wpdb->prepare(
-				"SELECT url, http_status, error_message, referrer
-			FROM {$table}
+				// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- {$table} is a fixed, plugin-controlled identifier, not user input.
+				"SELECT url, http_status, error_message, referrer FROM {$table}
 			WHERE export_id = %s AND status = 'failed' AND http_status >= 400
 			ORDER BY http_status DESC, id ASC",
 				$export_id,
 			)
 		);
 
-		return $rows ?: array();
+		return $rows ? $rows : array();
 	}
 
 	/**
@@ -276,6 +282,7 @@ final class CrawlQueue {
 		$table = $this->table();
 		return (int) $wpdb->query(
 			$wpdb->prepare(
+				// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- {$table} is a fixed, plugin-controlled identifier, not user input.
 				"UPDATE {$table}
 			SET status = 'pending', updated_at = NOW()
 			WHERE export_id = %s AND status = 'processing'

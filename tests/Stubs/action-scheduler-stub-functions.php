@@ -32,7 +32,7 @@ if ( ! function_exists( 'as_unschedule_all_actions' ) ) {
 	 * @param mixed[] $args  Arguments passed to the hook.
 	 * @param string  $group Action Scheduler group.
 	 */
-	function as_unschedule_all_actions( string $hook, array $args, string $group ): void {
+	function as_unschedule_all_actions( string $hook, array $args = [], string $group = '' ): void {
 		global $_as_calls;
 		$_as_calls[] = [ 'method' => 'as_unschedule_all_actions', 'hook' => $hook, 'args' => $args, 'group' => $group ];
 	}

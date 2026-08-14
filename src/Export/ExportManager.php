@@ -184,109 +184,8 @@ final class ExportManager {
 	 * @param object    $queue_item Queue row object with url and id properties.
 	 */
 	public function process_url( ExportJob $job, object $queue_item ): void {
-		$this->logger->info( 'Processing URL', array( 'url' => $queue_item->url ) );
-
 		$result = $this->fetcher->fetch( $queue_item->url );
-
-		if ( ! $result->is_success() ) {
-			$this->crawl_queue->mark_failed(
-				(int) $queue_item->id,
-				$result->error ?? "HTTP {$result->http_status}",
-				$result->http_status,
-			);
-			return;
-		}
-
-		// Incremental export: skip unchanged content.
-		$incremental = (bool) $this->settings->get( 'incremental_export', false );
-		if ( $incremental && null !== $this->content_hash_store ) {
-			$new_hash    = ContentHashStore::hash_content( $result->body );
-			$stored_hash = $this->content_hash_store->get_hash( $queue_item->url );
-
-			if ( null !== $stored_hash && $stored_hash === $new_hash ) {
-				$this->logger->info( 'Skipping unchanged URL', array( 'url' => $queue_item->url ) );
-				$this->crawl_queue->mark_completed(
-					(int) $queue_item->id,
-					$result->http_status,
-					$result->content_type,
-					'',
-				);
-				return;
-			}
-		}
-
-		if ( $result->is_html() ) {
-			$processed = $this->html_processor->process(
-				$result->body,
-				$queue_item->url,
-				$job->url_mode,
-				$job->base_url,
-			);
-
-			$output_path = $this->file_writer->write_html(
-				$job->output_dir,
-				$queue_item->url,
-				$processed['html'],
-			);
-
-			// Enqueue newly discovered URLs (filtered by pagination depth).
-			$discovered = $this->filter_pagination( $processed['discovered_urls'] );
-			if ( ! empty( $discovered ) ) {
-				$this->crawl_queue->enqueue( $job->export_id, $discovered, $queue_item->url );
-				// Update total count.
-				$counts = $this->crawl_queue->get_counts( $job->export_id );
-				$this->progress->update_total( $job->export_id, $counts['total'] );
-			}
-
-			// Copy assets and recursively crawl CSS for nested references.
-			$site_url = untrailingslashit( home_url() );
-			foreach ( $processed['assets'] as $asset_url ) {
-				$copied = $this->file_writer->copy_asset( $job->output_dir, $asset_url, $site_url );
-
-				if ( false !== $copied && $this->is_css_url( $asset_url ) ) {
-					$this->crawl_css_assets( $job->output_dir, $asset_url, $site_url );
-				}
-			}
-
-			// Post-process: convert images to WebP and rewrite HTML references.
-			$this->maybe_optimize_images( $job->output_dir, $output_path, $processed['assets'], $site_url );
-
-			// Post-process: minify CSS/JS assets in-place.
-			$this->maybe_minify_assets( $job->output_dir, $processed['assets'], $site_url );
-		} else {
-			// Non-HTML (e.g., XML feeds) — save as-is.
-			$output_path = $this->file_writer->write_html(
-				$job->output_dir,
-				$queue_item->url,
-				$result->body,
-			);
-		}
-
-		if ( false !== $output_path ) {
-			$this->crawl_queue->mark_completed(
-				(int) $queue_item->id,
-				$result->http_status,
-				$result->content_type,
-				$output_path,
-			);
-
-			// Store content hash for incremental export.
-			if ( null !== $this->content_hash_store ) {
-				$content_hash = ContentHashStore::hash_content( $result->body );
-				$this->content_hash_store->store_hash(
-					$queue_item->url,
-					$content_hash,
-					$output_path,
-					$job->export_id,
-				);
-			}
-		} else {
-			$this->crawl_queue->mark_failed(
-				(int) $queue_item->id,
-				'Failed to write output file',
-				$result->http_status,
-			);
-		}
+		$this->process_fetched_result( $job, $queue_item, $result );
 	}
 
 	/**
@@ -324,7 +223,10 @@ final class ExportManager {
 	}
 
 	/**
-	 * Process an already-fetched result for a queue item.
+	 * Handle an already-fetched result for a queue item: incremental-export
+	 * skip check, HTML processing/asset copying, or as-is write for non-HTML,
+	 * then mark the item completed or failed. Shared by process_url() (single
+	 * synchronous fetch) and process_batch() (parallel BatchFetcher results).
 	 *
 	 * @param ExportJob   $job        The export job.
 	 * @param object      $queue_item Queue row object with url and id properties.
@@ -382,7 +284,7 @@ final class ExportManager {
 				$this->progress->update_total( $job->export_id, $counts['total'] );
 			}
 
-			// Copy assets.
+			// Copy assets and recursively crawl CSS for nested references.
 			$site_url = untrailingslashit( home_url() );
 			foreach ( $processed['assets'] as $asset_url ) {
 				$copied = $this->file_writer->copy_asset( $job->output_dir, $asset_url, $site_url );
@@ -455,7 +357,7 @@ final class ExportManager {
 
 		$counts = $this->crawl_queue->get_counts( $job->export_id );
 
-		$status = $counts['failed'] > 0 && $counts['completed'] === 0
+		$status = $counts['failed'] > 0 && 0 === $counts['completed']
 			? 'failed'
 			: 'completed';
 
@@ -581,6 +483,7 @@ final class ExportManager {
 		$table = $wpdb->prefix . 'sewp_crawl_queue';
 		$urls  = $wpdb->get_col(
 			$wpdb->prepare(
+				// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- {$table} is a fixed, plugin-controlled identifier, not user input.
 				"SELECT url FROM {$table} WHERE export_id = %s AND status = 'completed' AND content_type LIKE %s ORDER BY id ASC",
 				$job->export_id,
 				'%text/html%',
@@ -687,7 +590,7 @@ final class ExportManager {
 			array_filter(
 				$urls,
 				function ( string $url ) use ( $max_depth ): bool {
-					// Match WordPress pagination patterns: /page/N/ or /comment-page-N/
+					// Match WordPress pagination patterns: /page/N/ or /comment-page-N/.
 					if ( preg_match( '#/page/(\d+)/?#', $url, $m ) ) {
 						return (int) $m[1] <= $max_depth;
 					}

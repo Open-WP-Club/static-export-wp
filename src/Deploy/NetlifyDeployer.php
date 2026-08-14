@@ -136,7 +136,7 @@ final class NetlifyDeployer implements Deployer {
 			$message .= sprintf( ' %d upload errors.', $upload_errors );
 		}
 
-		return $upload_errors > 0 && $uploaded_count === 0
+		return $upload_errors > 0 && 0 === $uploaded_count
 			? DeployResult::fail( $message, array( 'deploy_id' => $deploy_id ) )
 			: DeployResult::ok( $message, array( 'deploy_id' => $deploy_id ) );
 	}

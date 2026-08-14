@@ -29,10 +29,12 @@ final class LogController {
 
 		$table = $wpdb->prefix . 'sewp_export_log';
 
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- {$table} is a fixed, plugin-controlled identifier, not user input.
 		$total = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$table}" );
 
 		$logs = $wpdb->get_results(
 			$wpdb->prepare(
+				// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- {$table} is a fixed, plugin-controlled identifier, not user input.
 				"SELECT * FROM {$table} ORDER BY id DESC LIMIT %d OFFSET %d",
 				$per_page,
 				$offset,
@@ -41,7 +43,7 @@ final class LogController {
 
 		return new \WP_REST_Response(
 			array(
-				'logs'        => $logs ?: array(),
+				'logs'        => $logs ? $logs : array(),
 				'total'       => $total,
 				'page'        => $page,
 				'per_page'    => $per_page,
@@ -65,8 +67,8 @@ final class LogController {
 
 		$rows = $wpdb->get_results(
 			$wpdb->prepare(
-				"SELECT export_id, started_at, completed_at, size_report
-			 FROM {$table}
+				// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- {$table} is a fixed, plugin-controlled identifier, not user input.
+				"SELECT export_id, started_at, completed_at, size_report FROM {$table}
 			 WHERE size_report IS NOT NULL
 			 ORDER BY id DESC
 			 LIMIT %d",
@@ -75,12 +77,13 @@ final class LogController {
 		);
 
 		$exports = array();
-		foreach ( ( $rows ?: array() ) as $row ) {
+		foreach ( ( $rows ? $rows : array() ) as $row ) {
+			$decoded   = json_decode( $row->size_report, true );
 			$exports[] = array(
 				'export_id'    => $row->export_id,
 				'started_at'   => $row->started_at,
 				'completed_at' => $row->completed_at,
-				'size_report'  => json_decode( $row->size_report, true ) ?: array(),
+				'size_report'  => $decoded ? $decoded : array(),
 			);
 		}
 

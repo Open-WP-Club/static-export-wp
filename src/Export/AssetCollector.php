@@ -99,7 +99,8 @@ final class AssetCollector {
 
 		// Extract url() references from inline styles.
 		if ( '' === $html ) {
-			$html = $doc->saveHTML() ?: '';
+			$saved = $doc->saveHTML();
+			$html  = $saved ? $saved : '';
 		}
 		$assets = array_merge( $assets, $this->extract_css_urls( $html ) );
 
@@ -193,7 +194,8 @@ final class AssetCollector {
 			}
 
 			// Strip query strings and fragments for dedup.
-			$clean = strtok( $url, '?#' ) ?: $url;
+			$stripped = strtok( $url, '?#' );
+			$clean    = $stripped ? $stripped : $url;
 
 			if ( ! str_starts_with( $clean, $site_url ) ) {
 				continue;

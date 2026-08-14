@@ -28,7 +28,7 @@ final class PathHelper {
 	 * @return string The resulting filesystem-relative path.
 	 */
 	public function url_to_filepath( string $url_path ): string {
-		$path = trim( parse_url( $url_path, PHP_URL_PATH ) ?? '/', '/' );
+		$path = trim( wp_parse_url( $url_path, PHP_URL_PATH ) ?? '/', '/' );
 
 		if ( '' === $path ) {
 			return 'index.html';
@@ -52,8 +52,9 @@ final class PathHelper {
 	 * @return string|false The resolved absolute path, or false if it escapes the base directory.
 	 */
 	public function safe_path( string $base_dir, string $relative_path ): string|false {
-		$base_dir = rtrim( realpath( $base_dir ) ?: $base_dir, '/' );
-		$full     = $base_dir . '/' . $relative_path;
+		$resolved_base = realpath( $base_dir );
+		$base_dir      = rtrim( $resolved_base ? $resolved_base : $base_dir, '/' );
+		$full          = $base_dir . '/' . $relative_path;
 
 		// Resolve any ../ segments.
 		$resolved = $this->resolve_path( $full );

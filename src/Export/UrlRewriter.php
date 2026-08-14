@@ -163,7 +163,8 @@ final class UrlRewriter {
 		$downs = array_slice( $to_parts, $common );
 		$parts = array_merge( array_fill( 0, $ups, '..' ), $downs );
 
-		return implode( '/', $parts ) ?: '.';
+		$joined = implode( '/', $parts );
+		return $joined ? $joined : '.';
 	}
 
 	/**

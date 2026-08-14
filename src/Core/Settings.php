@@ -76,14 +76,14 @@ final class Settings {
 	/**
 	 * Get a single setting value.
 	 *
-	 * @param string $key     Setting name.
-	 * @param mixed  $default Value to return if the setting is not set.
+	 * @param string $key      Setting name.
+	 * @param mixed  $fallback Value to return if the setting is not set.
 	 *
-	 * @return mixed The setting value, or $default if not found.
+	 * @return mixed The setting value, or $fallback if not found.
 	 */
-	public function get( string $key, mixed $default = null ): mixed {
+	public function get( string $key, mixed $fallback = null ): mixed {
 		$all = $this->get_all();
-		return $all[ $key ] ?? $default;
+		return $all[ $key ] ?? $fallback;
 	}
 
 	/**

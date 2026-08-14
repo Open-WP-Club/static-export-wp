@@ -604,6 +604,47 @@ if ( ! function_exists( 'get_month_link' ) ) {
 	}
 }
 
+// ── Plugin bootstrap ─────────────────────────────────────────────────────────
+
+if ( ! function_exists( 'is_admin' ) ) {
+	function is_admin(): bool {
+		global $_wp_is_admin;
+		return (bool) $_wp_is_admin;
+	}
+}
+
+if ( ! function_exists( 'load_plugin_textdomain' ) ) {
+	function load_plugin_textdomain( string $domain, bool $deprecated = false, string|false $plugin_rel_path = false ): bool {
+		return true;
+	}
+}
+
+if ( ! function_exists( 'plugin_basename' ) ) {
+	function plugin_basename( string $file ): string {
+		return basename( dirname( $file ) ) . '/' . basename( $file );
+	}
+}
+
+if ( ! function_exists( 'plugin_dir_path' ) ) {
+	function plugin_dir_path( string $file ): string {
+		return trailingslashit( dirname( $file ) );
+	}
+}
+
+if ( ! function_exists( 'plugin_dir_url' ) ) {
+	function plugin_dir_url( string $file ): string {
+		return 'https://example.com/wp-content/plugins/' . basename( dirname( $file ) ) . '/';
+	}
+}
+
+if ( ! function_exists( 'register_activation_hook' ) ) {
+	function register_activation_hook( string $file, callable $callback ): void {}
+}
+
+if ( ! function_exists( 'register_deactivation_hook' ) ) {
+	function register_deactivation_hook( string $file, callable $callback ): void {}
+}
+
 // ── Admin ──────────────────────────────────────────────────────────────────
 
 if ( ! class_exists( 'WPDieException' ) ) {
@@ -727,6 +768,8 @@ if ( ! function_exists( 'current_user_can' ) ) {
 
 if ( ! function_exists( 'dbDelta' ) ) {
 	function dbDelta( string|array $queries = '' ): array {
+		global $_wp_dbdelta_calls;
+		$_wp_dbdelta_calls[] = $queries;
 		return [];
 	}
 }

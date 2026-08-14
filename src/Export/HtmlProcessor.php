@@ -219,7 +219,8 @@ final class HtmlProcessor {
 			}
 
 			// Strip fragment.
-			$href = strtok( $href, '#' ) ?: $href;
+			$stripped = strtok( $href, '#' );
+			$href     = $stripped ? $stripped : $href;
 
 			$urls[] = $href;
 		}
