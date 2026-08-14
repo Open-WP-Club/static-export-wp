@@ -1,4 +1,9 @@
 <?php
+/**
+ * Writes exported HTML pages and copied assets to the output directory.
+ *
+ * @package StaticExportWP
+ */
 
 declare(strict_types=1);
 
@@ -7,11 +12,25 @@ namespace StaticExportWP\Export;
 use StaticExportWP\Utility\Logger;
 use StaticExportWP\Utility\PathHelper;
 
+/**
+ * Handles all filesystem writes for a static export: output directory setup,
+ * HTML page writes, asset copying, and cleanup.
+ */
 final class FileWriter {
 
-	/** @var array<string, string|false> Tracks already-copied assets by relative path. */
-	private array $asset_cache = [];
+	/**
+	 * Tracks already-copied assets by relative path.
+	 *
+	 * @var array<string, string|false>
+	 */
+	private array $asset_cache = array();
 
+	/**
+	 * Construct the file writer.
+	 *
+	 * @param PathHelper $path_helper Resolves and validates filesystem paths.
+	 * @param Logger     $logger      Logger for recording write failures.
+	 */
 	public function __construct(
 		private readonly PathHelper $path_helper,
 		private readonly Logger $logger = new Logger(),
@@ -19,6 +38,8 @@ final class FileWriter {
 
 	/**
 	 * Prepare the output directory: create it and write a .htaccess that prevents directory listing.
+	 *
+	 * @param string $output_dir Absolute path to the export output directory.
 	 */
 	public function initialize_output_dir( string $output_dir ): void {
 		$this->path_helper->ensure_directory( $output_dir );
@@ -40,6 +61,9 @@ final class FileWriter {
 	/**
 	 * Write HTML content to the output directory.
 	 *
+	 * @param string $output_dir Absolute path to the export output directory.
+	 * @param string $url        URL the HTML was rendered for, used to derive the file path.
+	 * @param string $html       HTML content to write.
 	 * @return string|false The relative file path on success, false on failure.
 	 */
 	public function write_html( string $output_dir, string $url, string $html ): string|false {
@@ -65,13 +89,22 @@ final class FileWriter {
 			return $relative_path;
 		}
 
-		$this->logger->error( 'Failed to write HTML file', [ 'path' => $full_path, 'url' => $url ] );
+		$this->logger->error(
+			'Failed to write HTML file',
+			array(
+				'path' => $full_path,
+				'url'  => $url,
+			)
+		);
 		return false;
 	}
 
 	/**
 	 * Copy a local asset file to the output directory.
 	 *
+	 * @param string $output_dir Absolute path to the export output directory.
+	 * @param string $asset_url  URL of the asset to copy.
+	 * @param string $site_url   Site's own URL, used to resolve the asset's local path.
 	 * @return string|false The relative file path on success, false on failure.
 	 */
 	public function copy_asset( string $output_dir, string $asset_url, string $site_url ): string|false {
@@ -119,10 +152,13 @@ final class FileWriter {
 			}
 		} else {
 			// Remote or not found locally — fetch via HTTP.
-			$response = wp_remote_get( $asset_url, [
-				'timeout'   => 30,
-				'sslverify' => (bool) apply_filters( 'sewp_sslverify', true ),
-			] );
+			$response = wp_remote_get(
+				$asset_url,
+				array(
+					'timeout'   => 30,
+					'sslverify' => (bool) apply_filters( 'sewp_sslverify', true ),
+				)
+			);
 
 			if ( ! is_wp_error( $response ) && 200 === wp_remote_retrieve_response_code( $response ) ) {
 				global $wp_filesystem;
@@ -144,6 +180,10 @@ final class FileWriter {
 
 	/**
 	 * Convert an asset URL to a relative file path.
+	 *
+	 * @param string $url      Asset URL to convert.
+	 * @param string $site_url Site's own URL, stripped from the asset URL's path.
+	 * @return string Relative file path, without a leading slash.
 	 */
 	private function asset_url_to_path( string $url, string $site_url ): string {
 		$site_path = wp_parse_url( $site_url, PHP_URL_PATH ) ?? '';
@@ -158,6 +198,10 @@ final class FileWriter {
 
 	/**
 	 * Try to map a URL to a local filesystem path.
+	 *
+	 * @param string $url      Asset URL to resolve.
+	 * @param string $site_url Site's own URL, stripped from the asset URL's path.
+	 * @return string|null Absolute local path if the file exists, null otherwise.
 	 */
 	private function url_to_local_path( string $url, string $site_url ): ?string {
 		$site_path = wp_parse_url( $site_url, PHP_URL_PATH ) ?? '';
@@ -174,6 +218,9 @@ final class FileWriter {
 
 	/**
 	 * Delete the output directory and all contents.
+	 *
+	 * @param string $output_dir Absolute path to the export output directory.
+	 * @return bool True if the directory was removed (or did not exist), false on failure.
 	 */
 	public function clean_output( string $output_dir ): bool {
 		if ( ! is_dir( $output_dir ) ) {

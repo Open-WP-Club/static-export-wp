@@ -1,4 +1,9 @@
 <?php
+/**
+ * Sends email notifications when a static export finishes.
+ *
+ * @package StaticExportWP
+ */
 
 declare(strict_types=1);
 
@@ -6,8 +11,16 @@ namespace StaticExportWP\Notification;
 
 use StaticExportWP\Core\Settings;
 
+/**
+ * Emails the configured recipient a summary when an export completes or fails.
+ */
 final class ExportNotifier {
 
+	/**
+	 * Constructor.
+	 *
+	 * @param Settings $settings Plugin settings accessor.
+	 */
 	public function __construct(
 		private readonly Settings $settings,
 	) {}

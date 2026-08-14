@@ -1,11 +1,22 @@
 <?php
+/**
+ * Runs plugin deactivation tasks.
+ *
+ * @package StaticExportWP
+ */
 
 declare(strict_types=1);
 
 namespace StaticExportWP\Core;
 
+/**
+ * Handles cleanup performed when the plugin is deactivated.
+ */
 final class Deactivator {
 
+	/**
+	 * Cancel any running background exports and clear stored progress.
+	 */
 	public static function deactivate(): void {
 		// Cancel any running background exports.
 		if ( function_exists( 'as_unschedule_all_actions' ) ) {

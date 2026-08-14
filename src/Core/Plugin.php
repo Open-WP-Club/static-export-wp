@@ -1,4 +1,9 @@
 <?php
+/**
+ * Plugin bootstrap: wires up services and registers WordPress hooks.
+ *
+ * @package StaticExportWP
+ */
 
 declare(strict_types=1);
 
@@ -30,13 +35,38 @@ use StaticExportWP\Search\PagefindRunner;
 use StaticExportWP\Utility\Logger;
 use StaticExportWP\Utility\PathHelper;
 
+/**
+ * Singleton that constructs and wires together all plugin services and
+ * registers the WordPress hooks that drive the export workflow.
+ */
 final class Plugin {
 
+	/**
+	 * Singleton instance.
+	 *
+	 * @var self|null
+	 */
 	private static ?self $instance = null;
 
+	/**
+	 * Plugin settings.
+	 *
+	 * @var Settings
+	 */
 	private Settings $settings;
+
+	/**
+	 * Manages the export lifecycle (start, batch processing, finalize).
+	 *
+	 * @var ExportManager
+	 */
 	private ExportManager $export_manager;
 
+	/**
+	 * Get the singleton plugin instance, creating it if necessary.
+	 *
+	 * @return self The plugin instance.
+	 */
 	public static function instance(): self {
 		if ( null === self::$instance ) {
 			self::$instance = new self();
@@ -44,21 +74,27 @@ final class Plugin {
 		return self::$instance;
 	}
 
+	/**
+	 * Private constructor; use instance() to obtain the singleton.
+	 */
 	private function __construct() {}
 
+	/**
+	 * Construct all plugin services and register their WordPress hooks.
+	 */
 	public function boot(): void {
 		$this->settings = new Settings();
 
-		$path_helper      = new PathHelper();
-		$logger           = new Logger();
-		$crawl_queue      = new CrawlQueue();
-		$url_discovery    = new UrlDiscovery( $this->settings );
-		$fetcher          = new Fetcher( $this->settings );
-		$batch_fetcher    = new BatchFetcher( $this->settings );
-		$url_rewriter     = new UrlRewriter( $this->settings );
-		$asset_collector  = new AssetCollector();
-		$html_processor   = new HtmlProcessor( $url_rewriter, $asset_collector );
-		$file_writer      = new FileWriter( $path_helper );
+		$path_helper        = new PathHelper();
+		$logger             = new Logger();
+		$crawl_queue        = new CrawlQueue();
+		$url_discovery      = new UrlDiscovery( $this->settings );
+		$fetcher            = new Fetcher( $this->settings );
+		$batch_fetcher      = new BatchFetcher( $this->settings );
+		$url_rewriter       = new UrlRewriter( $this->settings );
+		$asset_collector    = new AssetCollector();
+		$html_processor     = new HtmlProcessor( $url_rewriter, $asset_collector );
+		$file_writer        = new FileWriter( $path_helper );
 		$progress_tracker   = new ProgressTracker();
 		$scheduler          = new ActionSchedulerBridge();
 		$content_hash_store = new ContentHashStore();
@@ -98,18 +134,18 @@ final class Plugin {
 			$this->settings,
 		);
 
-		add_action( 'sewp_process_batch', [ $batch_processor, 'handle' ] );
+		add_action( 'sewp_process_batch', array( $batch_processor, 'handle' ) );
 
 		// Notifications.
 		$notifier = new ExportNotifier( $this->settings );
-		add_action( 'sewp_export_finalized', [ $notifier, 'notify' ], 10, 4 );
+		add_action( 'sewp_export_finalized', array( $notifier, 'notify' ), 10, 4 );
 
 		$webhook_notifier = new WebhookNotifier( $this->settings );
-		add_action( 'sewp_export_finalized', [ $webhook_notifier, 'notify' ], 10, 4 );
+		add_action( 'sewp_export_finalized', array( $webhook_notifier, 'notify' ), 10, 4 );
 
 		// Pagefind search indexing.
 		$pagefind = new PagefindRunner( $this->settings, $logger );
-		add_action( 'sewp_post_export_process', [ $pagefind, 'run' ] );
+		add_action( 'sewp_post_export_process', array( $pagefind, 'run' ) );
 
 		// Auto-export on publish.
 		$publish_trigger = new PostPublishTrigger( $this->export_manager, $progress_tracker, $this->settings );
@@ -125,28 +161,45 @@ final class Plugin {
 
 		// REST API must be available for both admin and frontend REST requests.
 		$rest_api = new RestApi( $this->export_manager, $this->settings, $url_discovery, $progress_tracker, $crawl_queue );
-		add_action( 'rest_api_init', [ $rest_api, 'register_routes' ] );
+		add_action( 'rest_api_init', array( $rest_api, 'register_routes' ) );
 
 		if ( defined( 'WP_CLI' ) && WP_CLI ) {
-			\WP_CLI::add_command( 'static-export', new StaticExportCommand(
-				$this->export_manager,
-				$this->settings,
-				$url_discovery,
-				$progress_tracker,
-			) );
+			\WP_CLI::add_command(
+				'static-export',
+				new StaticExportCommand(
+					$this->export_manager,
+					$this->settings,
+					$url_discovery,
+					$progress_tracker,
+				)
+			);
 		}
 
 		load_plugin_textdomain( 'static-export-wp', false, dirname( plugin_basename( SEWP_FILE ) ) . '/languages' );
 	}
 
+	/**
+	 * Get the plugin settings service.
+	 *
+	 * @return Settings The plugin settings.
+	 */
 	public function settings(): Settings {
 		return $this->settings;
 	}
 
+	/**
+	 * Get the export manager service.
+	 *
+	 * @return ExportManager The export manager.
+	 */
 	public function export_manager(): ExportManager {
 		return $this->export_manager;
 	}
 
+	/**
+	 * Run the database schema upgrade if the installed DB version is older
+	 * than the current plugin schema version.
+	 */
 	private function maybe_upgrade_db(): void {
 		$installed_version = get_option( 'sewp_db_version', '0' );
 		if ( version_compare( $installed_version, Schema::DB_VERSION, '<' ) ) {

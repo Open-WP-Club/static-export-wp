@@ -9,17 +9,27 @@
 
 global $_wp_options, $_wp_remote_responses, $_wp_mail_log, $_wp_transients,
 	$_wp_cron_events, $_wp_actions, $_wp_filters, $_wp_home_url, $_wp_bloginfo,
-	$_wp_upload_dir;
+	$_wp_upload_dir, $_wp_query_posts_by_type, $_wp_taxonomies, $_wp_terms_by_taxonomy,
+	$_wp_archive_post_types, $_wp_users, $_wp_rest_routes, $_wp_current_user_can,
+	$_wp_action_hooks;
 
-$_wp_options          = [];
-$_wp_remote_responses = [];
-$_wp_mail_log         = [];
-$_wp_transients       = [];
-$_wp_cron_events      = [];
-$_wp_actions          = [];
-$_wp_filters          = [];
-$_wp_home_url         = 'https://example.com';
-$_wp_bloginfo         = [ 'name' => 'Test Site' ];
+$_wp_options             = [];
+$_wp_remote_responses    = [];
+$_wp_mail_log            = [];
+$_wp_transients          = [];
+$_wp_cron_events         = [];
+$_wp_actions             = [];
+$_wp_filters             = [];
+$_wp_home_url            = 'https://example.com';
+$_wp_bloginfo            = [ 'name' => 'Test Site' ];
+$_wp_query_posts_by_type = [];
+$_wp_taxonomies          = [];
+$_wp_terms_by_taxonomy   = [];
+$_wp_archive_post_types  = [];
+$_wp_users               = [];
+$_wp_rest_routes         = [];
+$_wp_current_user_can    = [];
+$_wp_action_hooks        = [];
 $_wp_upload_dir       = [
 	'basedir' => '/tmp/wp-uploads',
 	'baseurl' => 'https://example.com/wp-content/uploads',
@@ -353,19 +363,25 @@ if ( ! function_exists( 'do_action' ) ) {
 if ( ! function_exists( 'apply_filters' ) ) {
 	function apply_filters( string $hook_name, mixed $value, mixed ...$args ): mixed {
 		global $_wp_filters;
-		$_wp_filters[] = [ 'hook' => $hook_name, 'value' => $value ];
+		foreach ( $_wp_filters[ $hook_name ] ?? [] as $callback ) {
+			$value = $callback( $value, ...$args );
+		}
 		return $value;
 	}
 }
 
 if ( ! function_exists( 'add_action' ) ) {
 	function add_action( string $hook_name, callable $callback, int $priority = 10, int $accepted_args = 1 ): bool {
+		global $_wp_action_hooks;
+		$_wp_action_hooks[] = [ 'hook' => $hook_name, 'callback' => $callback, 'priority' => $priority ];
 		return true;
 	}
 }
 
 if ( ! function_exists( 'add_filter' ) ) {
 	function add_filter( string $hook_name, callable $callback, int $priority = 10, int $accepted_args = 1 ): bool {
+		global $_wp_filters;
+		$_wp_filters[ $hook_name ][] = $callback;
 		return true;
 	}
 }
@@ -407,12 +423,24 @@ if ( ! function_exists( 'wp_schedule_single_event' ) ) {
 
 if ( ! function_exists( 'wp_clear_scheduled_hook' ) ) {
 	function wp_clear_scheduled_hook( string $hook, array $args = [] ): int {
-		return 0;
+		global $_wp_cron_events;
+		$before          = $_wp_cron_events;
+		$_wp_cron_events = array_values( array_filter(
+			$_wp_cron_events,
+			fn( $event ) => ! ( $event['hook'] === $hook && ( empty( $args ) || $event['args'] === $args ) ),
+		) );
+		return count( $before ) - count( $_wp_cron_events );
 	}
 }
 
 if ( ! function_exists( 'wp_next_scheduled' ) ) {
 	function wp_next_scheduled( string $hook, array $args = [] ): int|false {
+		global $_wp_cron_events;
+		foreach ( $_wp_cron_events as $event ) {
+			if ( $event['hook'] === $hook && ( empty( $args ) || $event['args'] === $args ) ) {
+				return $event['timestamp'];
+			}
+		}
 		return false;
 	}
 }
@@ -508,8 +536,9 @@ if ( ! class_exists( 'WP_Query' ) ) {
 		public array $posts = [];
 
 		public function __construct( array $args = [] ) {
-			// In test stubs, return empty posts by default.
-			$this->posts = [];
+			global $_wp_query_posts_by_type;
+			$post_type   = (string) ( $args['post_type'] ?? 'post' );
+			$this->posts = $_wp_query_posts_by_type[ $post_type ] ?? [];
 		}
 	}
 }
@@ -523,13 +552,16 @@ if ( ! function_exists( 'get_permalink' ) ) {
 
 if ( ! function_exists( 'get_taxonomies' ) ) {
 	function get_taxonomies( array $args = [], string $output = 'names' ): array {
-		return [];
+		global $_wp_taxonomies;
+		return $_wp_taxonomies;
 	}
 }
 
 if ( ! function_exists( 'get_terms' ) ) {
 	function get_terms( array $args = [] ): array|WP_Error {
-		return [];
+		global $_wp_terms_by_taxonomy;
+		$taxonomy = (string) ( $args['taxonomy'] ?? '' );
+		return $_wp_terms_by_taxonomy[ $taxonomy ] ?? [];
 	}
 }
 
@@ -542,19 +574,21 @@ if ( ! function_exists( 'get_term_link' ) ) {
 
 if ( ! function_exists( 'get_post_types' ) ) {
 	function get_post_types( array $args = [], string $output = 'names' ): array {
-		return [];
+		global $_wp_archive_post_types;
+		return $_wp_archive_post_types;
 	}
 }
 
 if ( ! function_exists( 'get_post_type_archive_link' ) ) {
 	function get_post_type_archive_link( string $post_type ): string|false {
-		return false;
+		return home_url( '/' . $post_type . '/' );
 	}
 }
 
 if ( ! function_exists( 'get_users' ) ) {
 	function get_users( array $args = [] ): array {
-		return [];
+		global $_wp_users;
+		return $_wp_users;
 	}
 }
 
@@ -567,6 +601,125 @@ if ( ! function_exists( 'get_author_posts_url' ) ) {
 if ( ! function_exists( 'get_month_link' ) ) {
 	function get_month_link( int $year, int $month ): string {
 		return home_url( sprintf( '/%04d/%02d/', $year, $month ) );
+	}
+}
+
+// ── Admin ──────────────────────────────────────────────────────────────────
+
+if ( ! class_exists( 'WPDieException' ) ) {
+	/**
+	 * Thrown by the wp_die() stub instead of actually terminating the process,
+	 * so tests can assert on the "died" path with expectException().
+	 */
+	class WPDieException extends \Exception {}
+}
+
+if ( ! function_exists( 'wp_die' ) ) {
+	/**
+	 * @param array<string, mixed> $args Extra wp_die() arguments (unused in the stub).
+	 */
+	function wp_die( string $message = '', string $title = '', array $args = [] ): void {
+		throw new WPDieException( $message );
+	}
+}
+
+if ( ! function_exists( 'esc_html__' ) ) {
+	function esc_html__( string $text, string $domain = 'default' ): string {
+		return $text;
+	}
+}
+
+if ( ! function_exists( 'esc_html' ) ) {
+	function esc_html( string $text ): string {
+		return $text;
+	}
+}
+
+if ( ! function_exists( 'check_admin_referer' ) ) {
+	function check_admin_referer( int|string $action = -1, string $query_arg = '_wpnonce' ): bool {
+		return true;
+	}
+}
+
+if ( ! function_exists( 'admin_url' ) ) {
+	function admin_url( string $path = '' ): string {
+		return home_url( '/wp-admin/' . ltrim( $path, '/' ) );
+	}
+}
+
+if ( ! function_exists( 'rest_url' ) ) {
+	function rest_url( string $path = '' ): string {
+		return home_url( '/wp-json/' . ltrim( $path, '/' ) );
+	}
+}
+
+if ( ! function_exists( 'wp_create_nonce' ) ) {
+	function wp_create_nonce( int|string $action = -1 ): string {
+		return 'test-nonce';
+	}
+}
+
+if ( ! function_exists( 'wp_nonce_url' ) ) {
+	function wp_nonce_url( string $actionurl, int|string $action = -1, string $name = '_wpnonce' ): string {
+		return $actionurl . ( str_contains( $actionurl, '?' ) ? '&' : '?' ) . $name . '=test-nonce';
+	}
+}
+
+if ( ! function_exists( 'add_menu_page' ) ) {
+	/**
+	 * @param callable|string $callback Page render callback.
+	 */
+	function add_menu_page( string $page_title, string $menu_title, string $capability, string $menu_slug, callable|string $callback = '', string $icon_url = '', int|float|null $position = null ): string {
+		return 'toplevel_page_' . $menu_slug;
+	}
+}
+
+if ( ! function_exists( 'wp_enqueue_script' ) ) {
+	/**
+	 * @param string[] $deps Script handle dependencies.
+	 */
+	function wp_enqueue_script( string $handle, string $src = '', array $deps = [], string|bool|null $ver = false, bool $in_footer = false ): void {}
+}
+
+if ( ! function_exists( 'wp_enqueue_style' ) ) {
+	/**
+	 * @param string[] $deps Style handle dependencies.
+	 */
+	function wp_enqueue_style( string $handle, string $src = '', array $deps = [], string|bool|null $ver = false ): void {}
+}
+
+if ( ! function_exists( 'wp_localize_script' ) ) {
+	/**
+	 * @param array<string, mixed> $l10n Data made available to the script.
+	 */
+	function wp_localize_script( string $handle, string $object_name, array $l10n ): bool {
+		return true;
+	}
+}
+
+if ( ! function_exists( 'wp_tempnam' ) ) {
+	function wp_tempnam( string $filename = '', string $dir = '' ): string {
+		return ( '' !== $dir ? $dir : sys_get_temp_dir() ) . '/' . uniqid( 'sewp_tmp_', true );
+	}
+}
+
+// ── REST API ───────────────────────────────────────────────────────────────
+
+if ( ! function_exists( 'register_rest_route' ) ) {
+	/**
+	 * @param array<string, mixed> $args Route args (methods/callback/permission_callback, or a list of such).
+	 */
+	function register_rest_route( string $namespace, string $route, array $args = [] ): bool {
+		global $_wp_rest_routes;
+		$_wp_rest_routes[] = [ 'namespace' => $namespace, 'route' => $route, 'args' => $args ];
+		return true;
+	}
+}
+
+if ( ! function_exists( 'current_user_can' ) ) {
+	function current_user_can( string $capability, mixed ...$args ): bool {
+		global $_wp_current_user_can;
+		return $_wp_current_user_can[ $capability ] ?? true;
 	}
 }
 

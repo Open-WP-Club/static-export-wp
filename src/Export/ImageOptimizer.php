@@ -1,4 +1,9 @@
 <?php
+/**
+ * Converts exported images to WebP and tracks path replacements for HTML rewriting.
+ *
+ * @package StaticExportWP
+ */
 
 declare(strict_types=1);
 
@@ -6,13 +11,28 @@ namespace StaticExportWP\Export;
 
 use StaticExportWP\Utility\Logger;
 
+/**
+ * Converts eligible JPEG/PNG images in the export output to WebP using
+ * WordPress's image editor, and accumulates the original-to-WebP path
+ * mappings so HTML references can be rewritten afterwards.
+ */
 final class ImageOptimizer {
 
-	private const array OPTIMIZABLE_EXTENSIONS = [ 'jpg', 'jpeg', 'png' ];
+	private const array OPTIMIZABLE_EXTENSIONS = array( 'jpg', 'jpeg', 'png' );
 
-	/** @var array<string, string> Original relative path => WebP relative path. */
-	private array $replacements = [];
+	/**
+	 * Original relative path => WebP relative path.
+	 *
+	 * @var array<string, string>
+	 */
+	private array $replacements = array();
 
+	/**
+	 * Constructor.
+	 *
+	 * @param int    $quality WebP compression quality (0-100).
+	 * @param Logger $logger  Logger for optimization warnings/failures.
+	 */
 	public function __construct(
 		private readonly int $quality,
 		private readonly Logger $logger,
@@ -22,15 +42,21 @@ final class ImageOptimizer {
 	 * Convert an image file to WebP using WordPress's image editor (GD/Imagick).
 	 *
 	 * Deletes the original on success. Returns the new path, or false on failure.
+	 *
+	 * @param string $file_path Absolute path to the source image file.
+	 * @return string|false The new WebP file path, or false on failure.
 	 */
 	public function optimize( string $file_path ): string|false {
 		$editor = wp_get_image_editor( $file_path );
 
 		if ( is_wp_error( $editor ) ) {
-			$this->logger->warning( 'Image editor unavailable', [
-				'file'  => $file_path,
-				'error' => $editor->get_error_message(),
-			] );
+			$this->logger->warning(
+				'Image editor unavailable',
+				array(
+					'file'  => $file_path,
+					'error' => $editor->get_error_message(),
+				)
+			);
 			return false;
 		}
 
@@ -41,10 +67,13 @@ final class ImageOptimizer {
 		$saved = $editor->save( $webp_path, 'image/webp' );
 
 		if ( is_wp_error( $saved ) ) {
-			$this->logger->warning( 'WebP conversion failed', [
-				'file'  => $file_path,
-				'error' => $saved->get_error_message(),
-			] );
+			$this->logger->warning(
+				'WebP conversion failed',
+				array(
+					'file'  => $file_path,
+					'error' => $saved->get_error_message(),
+				)
+			);
 			return false;
 		}
 
@@ -59,6 +88,9 @@ final class ImageOptimizer {
 	 *
 	 * Handles the cross-batch/shared-image case: if the original is already gone
 	 * but the .webp version exists on disk, just record the mapping.
+	 *
+	 * @param string $output_dir    Export output directory.
+	 * @param string $relative_path Path to the image, relative to the output directory.
 	 */
 	public function optimize_and_track( string $output_dir, string $relative_path ): void {
 		$absolute_path = trailingslashit( $output_dir ) . $relative_path;
@@ -99,6 +131,9 @@ final class ImageOptimizer {
 
 	/**
 	 * Whether the given path is an optimizable image (JPEG or PNG).
+	 *
+	 * @param string $path The file path to check (only the extension is inspected).
+	 * @return bool True if the path's extension is JPEG or PNG.
 	 */
 	public function is_optimizable( string $path ): bool {
 		$extension = strtolower( pathinfo( $path, PATHINFO_EXTENSION ) );

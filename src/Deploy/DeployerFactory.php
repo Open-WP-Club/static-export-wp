@@ -1,4 +1,9 @@
 <?php
+/**
+ * Builds the configured Deployer instance for the current settings.
+ *
+ * @package StaticExportWP
+ */
 
 declare(strict_types=1);
 
@@ -7,8 +12,17 @@ namespace StaticExportWP\Deploy;
 use StaticExportWP\Core\Settings;
 use StaticExportWP\Utility\Logger;
 
+/**
+ * Instantiates the Deployer implementation matching the deploy_method setting.
+ */
 final class DeployerFactory {
 
+	/**
+	 * Constructor.
+	 *
+	 * @param Settings $settings Plugin settings accessor.
+	 * @param Logger   $logger   Logger passed to the created deployer.
+	 */
 	public function __construct(
 		private readonly Settings $settings,
 		private readonly Logger $logger,

@@ -1,6 +1,8 @@
 <?php
 /**
  * Uninstall handler — runs when the plugin is deleted via WP admin.
+ *
+ * @package StaticExportWP
  */
 
 if ( ! defined( 'WP_UNINSTALL_PLUGIN' ) ) {

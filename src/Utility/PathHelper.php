@@ -1,9 +1,18 @@
 <?php
+/**
+ * Filesystem path helpers used across the export process.
+ *
+ * @package StaticExportWP
+ */
 
 declare(strict_types=1);
 
 namespace StaticExportWP\Utility;
 
+/**
+ * Provides URL-to-filepath conversion, directory-traversal-safe path
+ * resolution, and directory creation helpers used by the export writers.
+ */
 final class PathHelper {
 
 	/**
@@ -14,6 +23,9 @@ final class PathHelper {
 	 *   /about/        -> about/index.html
 	 *   /style.css     -> style.css
 	 *   /feed/         -> feed/index.html
+	 *
+	 * @param string $url_path The URL path to convert.
+	 * @return string The resulting filesystem-relative path.
 	 */
 	public function url_to_filepath( string $url_path ): string {
 		$path = trim( parse_url( $url_path, PHP_URL_PATH ) ?? '/', '/' );
@@ -34,6 +46,10 @@ final class PathHelper {
 
 	/**
 	 * Ensure a path doesn't escape the output directory (directory traversal prevention).
+	 *
+	 * @param string $base_dir      Absolute base directory that the result must stay within.
+	 * @param string $relative_path Relative path to resolve against the base directory.
+	 * @return string|false The resolved absolute path, or false if it escapes the base directory.
 	 */
 	public function safe_path( string $base_dir, string $relative_path ): string|false {
 		$base_dir = rtrim( realpath( $base_dir ) ?: $base_dir, '/' );
@@ -51,10 +67,13 @@ final class PathHelper {
 
 	/**
 	 * Resolve a path without requiring the file to exist.
+	 *
+	 * @param string $path The path to resolve (may contain "." and ".." segments).
+	 * @return string The resolved path with "." and ".." segments collapsed.
 	 */
 	public function resolve_path( string $path ): string {
 		$parts    = explode( '/', str_replace( '\\', '/', $path ) );
-		$resolved = [];
+		$resolved = array();
 
 		foreach ( $parts as $part ) {
 			if ( '..' === $part ) {
@@ -70,6 +89,9 @@ final class PathHelper {
 
 	/**
 	 * Ensure a directory exists.
+	 *
+	 * @param string $path The directory path to check/create.
+	 * @return bool True if the directory exists or was successfully created.
 	 */
 	public function ensure_directory( string $path ): bool {
 		if ( is_dir( $path ) ) {

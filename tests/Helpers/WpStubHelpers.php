@@ -12,10 +12,11 @@ trait WpStubHelpers {
 	protected function reset_wp_state(): void {
 		global $_wp_options, $_wp_remote_responses, $_wp_mail_log, $_wp_transients,
 			$_wp_cron_events, $_wp_actions, $_wp_filters, $_wp_home_url, $_wp_bloginfo,
-			$_wp_upload_dir;
+			$_wp_upload_dir, $_wp_rest_routes, $_wp_current_user_can, $_wp_action_hooks;
 
 		$_wp_options          = [];
 		$_wp_remote_responses = [];
+		\WpOrg\Requests\Requests::$_responses = [];
 		$_wp_mail_log         = [];
 		$_wp_transients       = [];
 		$_wp_cron_events      = [];
@@ -23,6 +24,9 @@ trait WpStubHelpers {
 		$_wp_filters          = [];
 		$_wp_home_url         = 'https://example.com';
 		$_wp_bloginfo         = [ 'name' => 'Test Site' ];
+		$_wp_rest_routes      = [];
+		$_wp_current_user_can = [];
+		$_wp_action_hooks     = [];
 		$_wp_upload_dir       = [
 			'basedir' => '/tmp/wp-uploads',
 			'baseurl' => 'https://example.com/wp-content/uploads',
@@ -30,6 +34,11 @@ trait WpStubHelpers {
 			'url'     => 'https://example.com/wp-content/uploads',
 			'error'   => false,
 		];
+	}
+
+	protected function set_user_can( string $capability, bool $can ): void {
+		global $_wp_current_user_can;
+		$_wp_current_user_can[ $capability ] = $can;
 	}
 
 	protected function set_home_url( string $url ): void {

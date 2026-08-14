@@ -1,4 +1,9 @@
 <?php
+/**
+ * WP-CLI command for running and managing static site exports.
+ *
+ * @package StaticExportWP
+ */
 
 declare(strict_types=1);
 
@@ -14,6 +19,14 @@ use StaticExportWP\Export\ExportManager;
  */
 final class StaticExportCommand {
 
+	/**
+	 * Construct the command.
+	 *
+	 * @param ExportManager   $export_manager Runs and tracks export jobs, synchronous and background.
+	 * @param Settings        $settings       Plugin settings, used for defaults and overrides.
+	 * @param UrlDiscovery    $url_discovery  Discovers the set of URLs to export.
+	 * @param ProgressTracker $progress       Tracks the progress of the running/last export.
+	 */
 	public function __construct(
 		private readonly ExportManager $export_manager,
 		private readonly Settings $settings,
@@ -54,7 +67,7 @@ final class StaticExportCommand {
 			\WP_CLI::error( __( 'An export is already running. Cancel it first with: wp static-export cancel', 'static-export-wp' ) );
 		}
 
-		$overrides = [];
+		$overrides = array();
 
 		if ( isset( $assoc_args['output-dir'] ) ) {
 			$overrides['output_dir'] = $assoc_args['output-dir'];
@@ -99,29 +112,35 @@ final class StaticExportCommand {
 			if ( 'completed' === $status ) {
 				$settings = $this->settings->get_all();
 				$merged   = wp_parse_args( $overrides, $settings );
-				\WP_CLI::success( sprintf(
+				\WP_CLI::success(
+					sprintf(
 					/* translators: %1$d: completed URLs, %2$s: output directory */
-					__( 'Export completed: %1$d pages exported to %2$s', 'static-export-wp' ),
-					$progress['completed'] ?? 0,
-					$merged['output_dir'],
-				) );
+						__( 'Export completed: %1$d pages exported to %2$s', 'static-export-wp' ),
+						$progress['completed'] ?? 0,
+						$merged['output_dir'],
+					)
+				);
 			} elseif ( 'cancelled' === $status ) {
 				\WP_CLI::warning( __( 'Export was cancelled.', 'static-export-wp' ) );
 			} else {
-				\WP_CLI::warning( sprintf(
+				\WP_CLI::warning(
+					sprintf(
 					/* translators: %1$d: completed, %2$d: failed */
-					__( 'Export finished with issues: %1$d completed, %2$d failed.', 'static-export-wp' ),
-					$progress['completed'] ?? 0,
-					$progress['failed'] ?? 0,
-				) );
+						__( 'Export finished with issues: %1$d completed, %2$d failed.', 'static-export-wp' ),
+						$progress['completed'] ?? 0,
+						$progress['failed'] ?? 0,
+					)
+				);
 			}
 		} else {
 			$job = $this->export_manager->start_background( $overrides );
-			\WP_CLI::success( sprintf(
+			\WP_CLI::success(
+				sprintf(
 				/* translators: %s: export ID */
-				__( 'Background export started. Export ID: %s', 'static-export-wp' ),
-				$job->export_id,
-			) );
+					__( 'Background export started. Export ID: %s', 'static-export-wp' ),
+					$job->export_id,
+				)
+			);
 			\WP_CLI::log( __( 'Check progress with: wp static-export status', 'static-export-wp' ) );
 		}
 	}
@@ -141,8 +160,8 @@ final class StaticExportCommand {
 	 *   - yaml
 	 * ---
 	 *
-	 * @param array $args
-	 * @param array $assoc_args
+	 * @param array $args       Positional arguments (unused).
+	 * @param array $assoc_args Associative arguments; supports `format`.
 	 */
 	public function status( array $args, array $assoc_args ): void {
 		$progress = $this->progress->get();
@@ -159,45 +178,45 @@ final class StaticExportCommand {
 			return;
 		}
 
-		$data = [
-			[
+		$data = array(
+			array(
 				'Field' => __( 'Export ID', 'static-export-wp' ),
 				'Value' => $progress['export_id'] ?? '-',
-			],
-			[
+			),
+			array(
 				'Field' => __( 'Status', 'static-export-wp' ),
 				'Value' => $progress['status'] ?? '-',
-			],
-			[
+			),
+			array(
 				'Field' => __( 'Total URLs', 'static-export-wp' ),
 				'Value' => $progress['total'] ?? 0,
-			],
-			[
+			),
+			array(
 				'Field' => __( 'Completed', 'static-export-wp' ),
 				'Value' => $progress['completed'] ?? 0,
-			],
-			[
+			),
+			array(
 				'Field' => __( 'Failed', 'static-export-wp' ),
 				'Value' => $progress['failed'] ?? 0,
-			],
-			[
+			),
+			array(
 				'Field' => __( 'Current URL', 'static-export-wp' ),
 				'Value' => $progress['current_url'] ?? '-',
-			],
-			[
+			),
+			array(
 				'Field' => __( 'Started At', 'static-export-wp' ),
 				'Value' => $progress['started_at'] ?? '-',
-			],
-		];
+			),
+		);
 
-		\WP_CLI\Utils\format_items( $format, $data, [ 'Field', 'Value' ] );
+		\WP_CLI\Utils\format_items( $format, $data, array( 'Field', 'Value' ) );
 	}
 
 	/**
 	 * Cancel a running export.
 	 *
-	 * @param array $args
-	 * @param array $assoc_args
+	 * @param array $args       Positional arguments (unused).
+	 * @param array $assoc_args Associative arguments (unused).
 	 */
 	public function cancel( array $args, array $assoc_args ): void {
 		$progress = $this->progress->get();
@@ -219,8 +238,8 @@ final class StaticExportCommand {
 	 * [--yes]
 	 * : Skip confirmation.
 	 *
-	 * @param array $args
-	 * @param array $assoc_args
+	 * @param array $args       Positional arguments (unused).
+	 * @param array $assoc_args Associative arguments; supports `yes`, passed through to the confirmation prompt.
 	 */
 	public function clean( array $args, array $assoc_args ): void {
 		$output_dir = $this->settings->get( 'output_dir' );
@@ -265,8 +284,8 @@ final class StaticExportCommand {
 	 *
 	 * @subcommand list-urls
 	 *
-	 * @param array $args
-	 * @param array $assoc_args
+	 * @param array $args       Positional arguments (unused).
+	 * @param array $assoc_args Associative arguments; supports `format`.
 	 */
 	public function list_urls( array $args, array $assoc_args ): void {
 		$urls   = $this->url_discovery->discover();
@@ -277,7 +296,7 @@ final class StaticExportCommand {
 			return;
 		}
 
-		$items = array_map( fn( string $url ) => [ 'url' => $url ], $urls );
-		\WP_CLI\Utils\format_items( $format, $items, [ 'url' ] );
+		$items = array_map( fn( string $url ) => array( 'url' => $url ), $urls );
+		\WP_CLI\Utils\format_items( $format, $items, array( 'url' ) );
 	}
 }

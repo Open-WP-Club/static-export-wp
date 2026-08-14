@@ -1,4 +1,10 @@
 <?php
+/**
+ * Processes a single batch of URLs for a running export, then reschedules
+ * or finalizes the export as needed.
+ *
+ * @package StaticExportWP
+ */
 
 declare(strict_types=1);
 
@@ -8,8 +14,22 @@ use StaticExportWP\Core\Settings;
 use StaticExportWP\Crawler\CrawlQueue;
 use StaticExportWP\Export\ExportManager;
 
+/**
+ * Fetches and processes the next batch of queued URLs for an export,
+ * applying rate limiting, updating progress, and scheduling the next batch
+ * or finalizing the export once the queue is drained.
+ */
 final class BatchProcessor {
 
+	/**
+	 * Constructor.
+	 *
+	 * @param ExportManager         $export_manager Runs the actual export work.
+	 * @param CrawlQueue            $crawl_queue    Tracks pending/failed URLs for the export.
+	 * @param ProgressTracker       $progress       Tracks and reports export progress.
+	 * @param ActionSchedulerBridge $scheduler      Schedules the next batch action.
+	 * @param Settings              $settings       Plugin settings.
+	 */
 	public function __construct(
 		private readonly ExportManager $export_manager,
 		private readonly CrawlQueue $crawl_queue,
@@ -21,6 +41,8 @@ final class BatchProcessor {
 	/**
 	 * Handle a batch processing action.
 	 * This is called by Action Scheduler or wp_cron.
+	 *
+	 * @param string $export_id Export identifier the batch belongs to.
 	 */
 	public function handle( string $export_id ): void {
 		if ( $this->progress->is_cancelled( $export_id ) ) {
@@ -74,6 +96,10 @@ final class BatchProcessor {
 	/**
 	 * Retry any failed URLs; if there are retried items schedule another batch,
 	 * otherwise finalize the export.
+	 *
+	 * @param string                           $export_id   Export identifier the batch belongs to.
+	 * @param \StaticExportWP\Export\ExportJob $job         Current export job.
+	 * @param int                              $max_retries Maximum retry attempts allowed per URL.
 	 */
 	private function maybe_retry_or_finalize( string $export_id, \StaticExportWP\Export\ExportJob $job, int $max_retries ): void {
 		if ( $this->crawl_queue->retry_failed( $export_id, $max_retries ) > 0 ) {

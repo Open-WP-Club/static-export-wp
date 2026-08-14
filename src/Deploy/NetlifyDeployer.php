@@ -1,4 +1,9 @@
 <?php
+/**
+ * Deploys exported static sites to Netlify via its deploy API.
+ *
+ * @package StaticExportWP
+ */
 
 declare(strict_types=1);
 
@@ -8,15 +13,32 @@ use StaticExportWP\Core\Settings;
 use StaticExportWP\Export\ExportJob;
 use StaticExportWP\Utility\Logger;
 
+/**
+ * Uploads the export output directory to Netlify using the digest deploy
+ * API: hashes each file, tells Netlify which hashes it already has, and
+ * uploads only the files Netlify reports as required.
+ */
 final class NetlifyDeployer implements Deployer {
 
 	private const string API_BASE = 'https://api.netlify.com/api/v1';
 
+	/**
+	 * Constructor.
+	 *
+	 * @param Settings $settings Plugin settings accessor.
+	 * @param Logger   $logger   Logger for deploy progress and errors.
+	 */
 	public function __construct(
 		private readonly Settings $settings,
 		private readonly Logger $logger,
 	) {}
 
+	/**
+	 * Deploy the export job's output directory to Netlify.
+	 *
+	 * @param ExportJob $job Export job whose output_dir will be uploaded.
+	 * @return DeployResult Result of the deploy attempt.
+	 */
 	public function deploy( ExportJob $job ): DeployResult {
 		$token   = $this->settings->get( 'deploy_netlify_token', '' );
 		$site_id = $this->settings->get( 'deploy_netlify_site_id', '' );
@@ -32,7 +54,7 @@ final class NetlifyDeployer implements Deployer {
 		$output_dir = $job->output_dir;
 
 		if ( ! is_dir( $output_dir ) ) {
-			return DeployResult::fail( 'Output directory does not exist.', [ 'dir' => $output_dir ] );
+			return DeployResult::fail( 'Output directory does not exist.', array( 'dir' => $output_dir ) );
 		}
 
 		// 1. Build file manifest: path → SHA1.
@@ -42,7 +64,7 @@ final class NetlifyDeployer implements Deployer {
 			return DeployResult::fail( 'No files found in output directory.' );
 		}
 
-		$this->logger->info( 'Netlify deploy: starting', [ 'files' => count( $files ) ] );
+		$this->logger->info( 'Netlify deploy: starting', array( 'files' => count( $files ) ) );
 
 		// 2. Create deploy with file hashes.
 		$deploy = $this->create_deploy( $site_id, $token, $files );
@@ -52,13 +74,16 @@ final class NetlifyDeployer implements Deployer {
 		}
 
 		$deploy_id = $deploy['id'] ?? '';
-		$required  = $deploy['required'] ?? [];
+		$required  = $deploy['required'] ?? array();
 
-		$this->logger->info( 'Netlify deploy: created', [
-			'deploy_id' => $deploy_id,
-			'required'  => count( $required ),
-			'total'     => count( $files ),
-		] );
+		$this->logger->info(
+			'Netlify deploy: created',
+			array(
+				'deploy_id' => $deploy_id,
+				'required'  => count( $required ),
+				'total'     => count( $files ),
+			)
+		);
 
 		// 3. Upload required files.
 		$hash_to_paths = $this->build_hash_to_paths_map( $files );
@@ -75,7 +100,7 @@ final class NetlifyDeployer implements Deployer {
 			$full_path = $output_dir . '/' . ltrim( $path, '/' );
 
 			if ( ! file_exists( $full_path ) ) {
-				$this->logger->warning( 'Netlify deploy: file not found', [ 'path' => $path ] );
+				$this->logger->warning( 'Netlify deploy: file not found', array( 'path' => $path ) );
 				++$upload_errors;
 				continue;
 			}
@@ -83,7 +108,7 @@ final class NetlifyDeployer implements Deployer {
 			$uploaded = $this->upload_file( $deploy_id, $token, $path, $full_path );
 
 			if ( ! $uploaded ) {
-				$this->logger->warning( 'Netlify deploy: upload failed', [ 'path' => $path ] );
+				$this->logger->warning( 'Netlify deploy: upload failed', array( 'path' => $path ) );
 				++$upload_errors;
 			}
 		}
@@ -91,10 +116,13 @@ final class NetlifyDeployer implements Deployer {
 		$uploaded_count = count( $required ) - $upload_errors;
 
 		if ( $upload_errors > 0 ) {
-			$this->logger->warning( 'Netlify deploy: completed with errors', [
-				'uploaded'     => $uploaded_count,
-				'upload_errors' => $upload_errors,
-			] );
+			$this->logger->warning(
+				'Netlify deploy: completed with errors',
+				array(
+					'uploaded'      => $uploaded_count,
+					'upload_errors' => $upload_errors,
+				)
+			);
 		}
 
 		$message = sprintf(
@@ -109,10 +137,15 @@ final class NetlifyDeployer implements Deployer {
 		}
 
 		return $upload_errors > 0 && $uploaded_count === 0
-			? DeployResult::fail( $message, [ 'deploy_id' => $deploy_id ] )
-			: DeployResult::ok( $message, [ 'deploy_id' => $deploy_id ] );
+			? DeployResult::fail( $message, array( 'deploy_id' => $deploy_id ) )
+			: DeployResult::ok( $message, array( 'deploy_id' => $deploy_id ) );
 	}
 
+	/**
+	 * Human-readable label for this deploy method.
+	 *
+	 * @return string Deploy method label.
+	 */
 	public function label(): string {
 		return 'Netlify API';
 	}
@@ -120,10 +153,11 @@ final class NetlifyDeployer implements Deployer {
 	/**
 	 * Build a manifest of relative file paths to their SHA1 hashes.
 	 *
+	 * @param string $output_dir Export output directory to scan.
 	 * @return array<string, string> Map of "/path/file" => "sha1hash".
 	 */
 	private function build_file_manifest( string $output_dir ): array {
-		$files    = [];
+		$files    = array();
 		$iterator = new \RecursiveIteratorIterator(
 			new \RecursiveDirectoryIterator( $output_dir, \RecursiveDirectoryIterator::SKIP_DOTS ),
 		);
@@ -148,10 +182,11 @@ final class NetlifyDeployer implements Deployer {
 	/**
 	 * Invert the file manifest to map hashes back to paths.
 	 *
+	 * @param array<string, string> $files Map of "/path/file" => "sha1hash".
 	 * @return array<string, string> Map of "sha1hash" => "/path/file".
 	 */
 	private function build_hash_to_paths_map( array $files ): array {
-		$map = [];
+		$map = array();
 
 		foreach ( $files as $path => $hash ) {
 			// First path wins if multiple files share the same hash.
@@ -166,22 +201,28 @@ final class NetlifyDeployer implements Deployer {
 	/**
 	 * Create a deploy on Netlify with the file digest.
 	 *
+	 * @param string                $site_id Netlify site ID.
+	 * @param string                $token   Netlify personal access token.
+	 * @param array<string, string> $files   Map of "/path/file" => "sha1hash".
 	 * @return array|null The deploy response, or null on failure.
 	 */
 	private function create_deploy( string $site_id, string $token, array $files ): ?array {
 		$url = self::API_BASE . '/sites/' . $site_id . '/deploys';
 
-		$response = wp_remote_post( $url, [
-			'headers' => [
-				'Authorization' => 'Bearer ' . $token,
-				'Content-Type'  => 'application/json',
-			],
-			'body'    => wp_json_encode( [ 'files' => $files ] ),
-			'timeout' => 60,
-		] );
+		$response = wp_remote_post(
+			$url,
+			array(
+				'headers' => array(
+					'Authorization' => 'Bearer ' . $token,
+					'Content-Type'  => 'application/json',
+				),
+				'body'    => wp_json_encode( array( 'files' => $files ) ),
+				'timeout' => 60,
+			)
+		);
 
 		if ( is_wp_error( $response ) ) {
-			$this->logger->error( 'Netlify deploy: API error', [ 'error' => $response->get_error_message() ] );
+			$this->logger->error( 'Netlify deploy: API error', array( 'error' => $response->get_error_message() ) );
 			return null;
 		}
 
@@ -189,10 +230,13 @@ final class NetlifyDeployer implements Deployer {
 		$body = json_decode( wp_remote_retrieve_body( $response ), true );
 
 		if ( $code < 200 || $code >= 300 ) {
-			$this->logger->error( 'Netlify deploy: API returned error', [
-				'status' => $code,
-				'body'   => wp_remote_retrieve_body( $response ),
-			] );
+			$this->logger->error(
+				'Netlify deploy: API returned error',
+				array(
+					'status' => $code,
+					'body'   => wp_remote_retrieve_body( $response ),
+				)
+			);
 			return null;
 		}
 
@@ -201,19 +245,28 @@ final class NetlifyDeployer implements Deployer {
 
 	/**
 	 * Upload a single file to a Netlify deploy.
+	 *
+	 * @param string $deploy_id Netlify deploy ID.
+	 * @param string $token     Netlify personal access token.
+	 * @param string $path      File path relative to the site root, as required by Netlify.
+	 * @param string $full_path Absolute filesystem path to read the file contents from.
+	 * @return bool True on a successful upload (2xx response).
 	 */
 	private function upload_file( string $deploy_id, string $token, string $path, string $full_path ): bool {
 		$url = self::API_BASE . '/deploys/' . $deploy_id . '/files' . $path;
 
-		$response = wp_remote_request( $url, [
-			'method'  => 'PUT',
-			'headers' => [
-				'Authorization' => 'Bearer ' . $token,
-				'Content-Type'  => 'application/octet-stream',
-			],
-			'body'    => file_get_contents( $full_path ),
-			'timeout' => 60,
-		] );
+		$response = wp_remote_request(
+			$url,
+			array(
+				'method'  => 'PUT',
+				'headers' => array(
+					'Authorization' => 'Bearer ' . $token,
+					'Content-Type'  => 'application/octet-stream',
+				),
+				'body'    => file_get_contents( $full_path ),
+				'timeout' => 60,
+			)
+		);
 
 		if ( is_wp_error( $response ) ) {
 			return false;

@@ -1,11 +1,26 @@
 <?php
+/**
+ * Processes exported HTML pages: rewrites URLs and collects referenced assets.
+ *
+ * @package StaticExportWP
+ */
 
 declare(strict_types=1);
 
 namespace StaticExportWP\Export;
 
+/**
+ * Parses page HTML into a DOMDocument and performs URL rewriting and asset
+ * collection against that single parsed document.
+ */
 final class HtmlProcessor {
 
+	/**
+	 * Construct the processor.
+	 *
+	 * @param UrlRewriter    $url_rewriter    Rewrites individual URLs found in the document.
+	 * @param AssetCollector $asset_collector Collects asset URLs referenced by the document.
+	 */
 	public function __construct(
 		private readonly UrlRewriter $url_rewriter,
 		private readonly AssetCollector $asset_collector,
@@ -16,6 +31,10 @@ final class HtmlProcessor {
 	 *
 	 * Parses DOMDocument once and shares it across all operations.
 	 *
+	 * @param string $html     Raw HTML content of the page.
+	 * @param string $page_url URL the page was fetched from, used to resolve relative links.
+	 * @param string $url_mode URL rewrite mode: relative or absolute.
+	 * @param string $base_url Base URL used when rewriting in absolute mode.
 	 * @return array{html: string, assets: string[], discovered_urls: string[]}
 	 */
 	public function process( string $html, string $page_url, string $url_mode, string $base_url ): array {
@@ -36,13 +55,23 @@ final class HtmlProcessor {
 		// Rewrite URLs in the same DOM.
 		$html = $this->rewrite_doc( $doc, $page_url, $url_mode, $base_url, $site_url );
 
-		return [
+		return array(
 			'html'            => $html,
 			'assets'          => $assets,
 			'discovered_urls' => $discovered,
-		];
+		);
 	}
 
+	/**
+	 * Rewrite all URL-bearing attributes and inline CSS url() references in a parsed document.
+	 *
+	 * @param \DOMDocument $doc      Parsed HTML document to rewrite in place.
+	 * @param string       $page_url URL the page was fetched from, used to resolve relative links.
+	 * @param string       $url_mode URL rewrite mode: relative or absolute.
+	 * @param string       $base_url Base URL used when rewriting in absolute mode.
+	 * @param string       $site_url Site's own URL, unused but kept for a consistent rewrite signature.
+	 * @return string The serialized, rewritten HTML.
+	 */
 	private function rewrite_doc( \DOMDocument $doc, string $page_url, string $url_mode, string $base_url, string $site_url ): string {
 		$rewrite = fn( string $url ) => $this->url_rewriter->rewrite( $url, $page_url, $url_mode, $base_url );
 
@@ -83,6 +112,14 @@ final class HtmlProcessor {
 		return $output;
 	}
 
+	/**
+	 * Rewrite a single attribute on every element matching a tag name.
+	 *
+	 * @param \DOMDocument $doc     Parsed HTML document to rewrite in place.
+	 * @param string       $tag     Element tag name to match, e.g. 'a' or 'img'.
+	 * @param string       $attr    Attribute name to rewrite, e.g. 'href' or 'src'.
+	 * @param callable     $rewrite Callback that rewrites a single URL string.
+	 */
 	private function rewrite_attribute( \DOMDocument $doc, string $tag, string $attr, callable $rewrite ): void {
 		foreach ( $doc->getElementsByTagName( $tag ) as $el ) {
 			$value = $el->getAttribute( $attr );
@@ -92,6 +129,13 @@ final class HtmlProcessor {
 		}
 	}
 
+	/**
+	 * Rewrite the URL portion of each candidate in the `srcset` attribute of matching elements.
+	 *
+	 * @param \DOMDocument $doc     Parsed HTML document to rewrite in place.
+	 * @param string       $tag     Element tag name to match, e.g. 'img' or 'source'.
+	 * @param callable     $rewrite Callback that rewrites a single URL string.
+	 */
 	private function rewrite_srcset( \DOMDocument $doc, string $tag, callable $rewrite ): void {
 		foreach ( $doc->getElementsByTagName( $tag ) as $el ) {
 			$srcset = $el->getAttribute( 'srcset' );
@@ -99,18 +143,28 @@ final class HtmlProcessor {
 				continue;
 			}
 
-			$entries = array_map( function ( $entry ) use ( $rewrite ) {
-				$parts = preg_split( '/\s+/', trim( $entry ), 2 );
-				if ( ! empty( $parts[0] ) ) {
-					$parts[0] = $rewrite( $parts[0] );
-				}
-				return implode( ' ', $parts );
-			}, explode( ',', $srcset ) );
+			$entries = array_map(
+				function ( $entry ) use ( $rewrite ) {
+					$parts = preg_split( '/\s+/', trim( $entry ), 2 );
+					if ( ! empty( $parts[0] ) ) {
+							$parts[0] = $rewrite( $parts[0] );
+					}
+					return implode( ' ', $parts );
+				},
+				explode( ',', $srcset )
+			);
 
 			$el->setAttribute( 'srcset', implode( ', ', $entries ) );
 		}
 	}
 
+	/**
+	 * Rewrite `url(...)` references inside inline CSS found in the serialized HTML.
+	 *
+	 * @param string   $html    Serialized HTML that may contain inline style url() references.
+	 * @param callable $rewrite Callback that rewrites a single URL string.
+	 * @return string HTML with inline CSS URLs rewritten.
+	 */
 	private function rewrite_inline_css_urls( string $html, callable $rewrite ): string {
 		return (string) preg_replace_callback(
 			'/url\(\s*[\'"]?([^\'")]+)[\'"]?\s*\)/i',
@@ -126,10 +180,12 @@ final class HtmlProcessor {
 	/**
 	 * Extract internal links from a pre-parsed DOMDocument.
 	 *
+	 * @param \DOMDocument $doc      Parsed HTML document to scan for links.
+	 * @param string       $site_url Site's own URL, used to identify internal links.
 	 * @return string[]
 	 */
 	private function extract_internal_links_from_doc( \DOMDocument $doc, string $site_url ): array {
-		$urls = [];
+		$urls = array();
 
 		foreach ( $doc->getElementsByTagName( 'a' ) as $el ) {
 			$href = $el->getAttribute( 'href' );

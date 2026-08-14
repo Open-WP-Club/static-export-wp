@@ -13,6 +13,7 @@ require_once __DIR__ . '/Stubs/class-wp-rest-response.php';
 require_once __DIR__ . '/Stubs/class-wp-rest-server.php';
 require_once __DIR__ . '/Stubs/class-wp-post.php';
 require_once __DIR__ . '/Stubs/class-wpdb.php';
+require_once __DIR__ . '/Stubs/class-wp-requests.php';
 
 // Load WordPress function stubs.
 require_once __DIR__ . '/Stubs/wordpress-stubs.php';

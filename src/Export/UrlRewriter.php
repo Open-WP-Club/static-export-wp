@@ -1,4 +1,9 @@
 <?php
+/**
+ * Rewrites URLs found in exported HTML to relative or absolute static paths.
+ *
+ * @package StaticExportWP
+ */
 
 declare(strict_types=1);
 
@@ -6,10 +11,25 @@ namespace StaticExportWP\Export;
 
 use StaticExportWP\Core\Settings;
 
+/**
+ * Rewrites in-site URLs found while processing HTML so they resolve correctly
+ * within the static export, either as paths relative to the current page or
+ * as absolute URLs against a configured base URL.
+ */
 final class UrlRewriter {
 
+	/**
+	 * The WordPress site URL (no trailing slash), used to identify in-site URLs.
+	 *
+	 * @var string
+	 */
 	private string $site_url;
 
+	/**
+	 * Constructor.
+	 *
+	 * @param Settings $settings Plugin settings accessor.
+	 */
 	public function __construct(
 		private readonly Settings $settings,
 	) {
@@ -57,6 +77,7 @@ final class UrlRewriter {
 	/**
 	 * Map a URL to its static file path.
 	 *
+	 * @param string $url The URL to map.
 	 * @return string Relative file path (e.g., "about/index.html").
 	 */
 	public function url_to_path( string $url ): string {
@@ -75,12 +96,26 @@ final class UrlRewriter {
 		return $path . '/index.html';
 	}
 
+	/**
+	 * Rewrite an absolute in-site URL against a custom base URL.
+	 *
+	 * @param string $url      The absolute in-site URL to rewrite.
+	 * @param string $base_url Custom base URL to rewrite against.
+	 * @return string The rewritten absolute URL.
+	 */
 	private function rewrite_absolute( string $url, string $base_url ): string {
 		$base_url = untrailingslashit( $base_url );
 		$path     = $this->get_site_relative_path( $url );
 		return $base_url . '/' . ltrim( $this->path_to_html( $path ), '/' );
 	}
 
+	/**
+	 * Rewrite an absolute in-site URL as a path relative to the current page.
+	 *
+	 * @param string $url              The absolute in-site URL to rewrite.
+	 * @param string $current_page_url The URL of the page being processed.
+	 * @return string The rewritten relative URL (preserving query/fragment).
+	 */
 	private function rewrite_relative( string $url, string $current_page_url ): string {
 		$from_path = $this->url_to_path( $current_page_url );
 		$to_path   = $this->url_to_path( $url );
@@ -103,6 +138,13 @@ final class UrlRewriter {
 		return $relative . '/' . $to_file . $fragment;
 	}
 
+	/**
+	 * Compute a relative filesystem path from one directory to another.
+	 *
+	 * @param string $from Source directory path.
+	 * @param string $to   Target directory path.
+	 * @return string The relative path (e.g., "../other-dir"), or "." if identical.
+	 */
 	private function compute_relative_path( string $from, string $to ): string {
 		$from_parts = array_filter( explode( '/', $from ), fn( $p ) => '' !== $p && '.' !== $p );
 		$to_parts   = array_filter( explode( '/', $to ), fn( $p ) => '' !== $p && '.' !== $p );
@@ -117,13 +159,19 @@ final class UrlRewriter {
 			++$common;
 		}
 
-		$ups     = count( $from_parts ) - $common;
-		$downs   = array_slice( $to_parts, $common );
-		$parts   = array_merge( array_fill( 0, $ups, '..' ), $downs );
+		$ups   = count( $from_parts ) - $common;
+		$downs = array_slice( $to_parts, $common );
+		$parts = array_merge( array_fill( 0, $ups, '..' ), $downs );
 
 		return implode( '/', $parts ) ?: '.';
 	}
 
+	/**
+	 * Strip the site's base path from a URL's path, leaving a site-relative path.
+	 *
+	 * @param string $url The absolute URL to convert.
+	 * @return string The site-relative path, always starting with "/".
+	 */
 	private function get_site_relative_path( string $url ): string {
 		$site_path = wp_parse_url( $this->site_url, PHP_URL_PATH ) ?? '';
 		$url_path  = wp_parse_url( $url, PHP_URL_PATH ) ?? '/';
@@ -135,6 +183,12 @@ final class UrlRewriter {
 		return '/' . ltrim( $url_path, '/' );
 	}
 
+	/**
+	 * Convert a site-relative path to its static HTML file path.
+	 *
+	 * @param string $path The site-relative path to convert.
+	 * @return string The static file path (e.g., "about/index.html").
+	 */
 	private function path_to_html( string $path ): string {
 		$path = trim( $path, '/' );
 
@@ -150,13 +204,19 @@ final class UrlRewriter {
 		return $path . '/index.html';
 	}
 
+	/**
+	 * Determine whether a URL should be left untouched (anchors, data URIs, etc.).
+	 *
+	 * @param string $url The URL to check.
+	 * @return bool True if the URL should be skipped.
+	 */
 	private function should_skip( string $url ): bool {
 		if ( '' === $url ) {
 			return true;
 		}
 
 		// Skip anchors, data URIs, javascript, mailto, tel.
-		foreach ( [ '#', 'data:', 'javascript:', 'mailto:', 'tel:' ] as $prefix ) {
+		foreach ( array( '#', 'data:', 'javascript:', 'mailto:', 'tel:' ) as $prefix ) {
 			if ( str_starts_with( $url, $prefix ) ) {
 				return true;
 			}
@@ -165,6 +225,12 @@ final class UrlRewriter {
 		return false;
 	}
 
+	/**
+	 * Make a protocol-relative or site-relative URL absolute.
+	 *
+	 * @param string $url The URL to make absolute.
+	 * @return string The absolute URL, or the original URL if already absolute.
+	 */
 	private function make_absolute( string $url ): string {
 		if ( str_starts_with( $url, '//' ) ) {
 			return 'https:' . $url;

@@ -1,4 +1,9 @@
 <?php
+/**
+ * Triggers a background static export automatically when a post is published.
+ *
+ * @package StaticExportWP
+ */
 
 declare(strict_types=1);
 
@@ -7,22 +12,39 @@ namespace StaticExportWP\Background;
 use StaticExportWP\Core\Settings;
 use StaticExportWP\Export\ExportManager;
 
+/**
+ * Listens for post status transitions and kicks off a background export when
+ * a post of a monitored type is published, subject to settings and debouncing.
+ */
 final class PostPublishTrigger {
 
-	private const string DEBOUNCE_KEY = 'sewp_auto_export_debounce';
+	private const string DEBOUNCE_KEY  = 'sewp_auto_export_debounce';
 	private const int DEBOUNCE_SECONDS = 30;
 
+	/**
+	 * Constructor.
+	 *
+	 * @param ExportManager   $export_manager Starts the background export.
+	 * @param ProgressTracker $progress       Used to avoid overlapping exports.
+	 * @param Settings        $settings       Plugin settings.
+	 */
 	public function __construct(
 		private readonly ExportManager $export_manager,
 		private readonly ProgressTracker $progress,
 		private readonly Settings $settings,
 	) {}
 
+	/**
+	 * Register the WordPress hook that watches for post status transitions.
+	 */
 	public function register(): void {
-		add_action( 'transition_post_status', [ $this, 'handle' ], 10, 3 );
+		add_action( 'transition_post_status', array( $this, 'handle' ), 10, 3 );
 	}
 
 	/**
+	 * Handle a post status transition, starting a background export when a
+	 * monitored post type is newly published.
+	 *
 	 * @param string   $new_status New post status.
 	 * @param string   $old_status Old post status.
 	 * @param \WP_Post $post       Post object.
@@ -36,7 +58,7 @@ final class PostPublishTrigger {
 			return;
 		}
 
-		$post_types = (array) $this->settings->get( 'post_types', [ 'post', 'page' ] );
+		$post_types = (array) $this->settings->get( 'post_types', array( 'post', 'page' ) );
 		if ( ! in_array( $post->post_type, $post_types, true ) ) {
 			return;
 		}

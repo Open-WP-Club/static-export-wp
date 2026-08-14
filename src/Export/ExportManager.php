@@ -1,4 +1,9 @@
 <?php
+/**
+ * Coordinates a full static export: discovery, crawling, processing and finalization.
+ *
+ * @package StaticExportWP
+ */
 
 declare(strict_types=1);
 
@@ -15,8 +20,32 @@ use StaticExportWP\Crawler\UrlDiscovery;
 use StaticExportWP\Deploy\DeployerFactory;
 use StaticExportWP\Utility\Logger;
 
+/**
+ * Orchestrates the export lifecycle: starting jobs, crawling URLs (synchronously
+ * or in the background), processing fetched pages/assets, and finalizing the
+ * output (extra files, size reporting, deploy).
+ */
 final class ExportManager {
 
+	/**
+	 * Constructor.
+	 *
+	 * @param Settings              $settings           Plugin settings accessor.
+	 * @param UrlDiscovery          $url_discovery      Discovers URLs to include in the export.
+	 * @param Fetcher               $fetcher            Fetches a single URL over HTTP.
+	 * @param CrawlQueue            $crawl_queue        Tracks queued/completed/failed URLs for a job.
+	 * @param HtmlProcessor         $html_processor     Rewrites HTML and extracts discovered URLs/assets.
+	 * @param AssetCollector        $asset_collector    Collects nested asset references from CSS.
+	 * @param FileWriter            $file_writer        Writes HTML and copies assets to the output directory.
+	 * @param ProgressTracker       $progress           Tracks and persists export progress state.
+	 * @param ActionSchedulerBridge $scheduler          Schedules and unschedules background batch processing.
+	 * @param Logger                $logger             Logger for export activity.
+	 * @param ?ContentHashStore     $content_hash_store Optional store used to skip unchanged content on incremental exports.
+	 * @param ?BatchFetcher         $batch_fetcher      Optional fetcher used to fetch a batch of URLs in parallel.
+	 * @param ?ImageOptimizer       $image_optimizer    Optional optimizer that converts images to WebP.
+	 * @param ?DeployerFactory      $deployer_factory   Optional factory that creates a post-export deployer.
+	 * @param ?AssetMinifier        $asset_minifier     Optional minifier for CSS/JS assets.
+	 */
 	public function __construct(
 		private readonly Settings $settings,
 		private readonly UrlDiscovery $url_discovery,
@@ -41,7 +70,7 @@ final class ExportManager {
 	 * @param array $overrides Optional settings overrides.
 	 * @return ExportJob
 	 */
-	public function start( array $overrides = [] ): ExportJob {
+	public function start( array $overrides = array() ): ExportJob {
 		$all_settings = $this->settings->get_all();
 		$merged       = wp_parse_args( $overrides, $all_settings );
 
@@ -50,14 +79,14 @@ final class ExportManager {
 		$url_mode   = $merged['url_mode'];
 		$base_url   = $merged['base_url'];
 
-		$this->logger->info( 'Starting export', [ 'export_id' => $export_id ] );
+		$this->logger->info( 'Starting export', array( 'export_id' => $export_id ) );
 
 		// Prepare output directory (creates it and writes .htaccess).
 		$this->file_writer->initialize_output_dir( $output_dir );
 
 		// Discover URLs.
 		$urls = $this->url_discovery->discover();
-		$this->logger->info( 'Discovered URLs', [ 'count' => count( $urls ) ] );
+		$this->logger->info( 'Discovered URLs', array( 'count' => count( $urls ) ) );
 
 		// Enqueue all URLs.
 		$this->crawl_queue->enqueue( $export_id, $urls );
@@ -82,8 +111,11 @@ final class ExportManager {
 
 	/**
 	 * Start a background export (via Action Scheduler or wp_cron).
+	 *
+	 * @param array $overrides Optional settings overrides.
+	 * @return ExportJob
 	 */
-	public function start_background( array $overrides = [] ): ExportJob {
+	public function start_background( array $overrides = array() ): ExportJob {
 		$job = $this->start( $overrides );
 		$this->scheduler->schedule_batch( $job->export_id );
 		return $job;
@@ -92,9 +124,11 @@ final class ExportManager {
 	/**
 	 * Run the export synchronously (for CLI use).
 	 *
+	 * @param array         $overrides   Optional settings overrides.
 	 * @param callable|null $on_progress Called after each URL with (completed, total, current_url).
+	 * @return ExportJob
 	 */
-	public function run_sync( array $overrides = [], ?callable $on_progress = null ): ExportJob {
+	public function run_sync( array $overrides = array(), ?callable $on_progress = null ): ExportJob {
 		$job         = $this->start( $overrides );
 		$batch_size  = (int) $this->settings->get( 'batch_size', 10 );
 		$rate_limit  = max( 1, (int) $this->settings->get( 'rate_limit', 50 ) );
@@ -145,9 +179,12 @@ final class ExportManager {
 
 	/**
 	 * Process a single URL from the queue.
+	 *
+	 * @param ExportJob $job        The export job.
+	 * @param object    $queue_item Queue row object with url and id properties.
 	 */
 	public function process_url( ExportJob $job, object $queue_item ): void {
-		$this->logger->info( 'Processing URL', [ 'url' => $queue_item->url ] );
+		$this->logger->info( 'Processing URL', array( 'url' => $queue_item->url ) );
 
 		$result = $this->fetcher->fetch( $queue_item->url );
 
@@ -167,7 +204,7 @@ final class ExportManager {
 			$stored_hash = $this->content_hash_store->get_hash( $queue_item->url );
 
 			if ( null !== $stored_hash && $stored_hash === $new_hash ) {
-				$this->logger->info( 'Skipping unchanged URL', [ 'url' => $queue_item->url ] );
+				$this->logger->info( 'Skipping unchanged URL', array( 'url' => $queue_item->url ) );
 				$this->crawl_queue->mark_completed(
 					(int) $queue_item->id,
 					$result->http_status,
@@ -267,11 +304,11 @@ final class ExportManager {
 			return;
 		}
 
-		$urls = array_map( fn( $item ) => $item->url, $queue_items );
+		$urls    = array_map( fn( $item ) => $item->url, $queue_items );
 		$results = $this->batch_fetcher->fetch_batch( $urls );
 
 		// Map queue items by URL for quick lookup.
-		$items_by_url = [];
+		$items_by_url = array();
 		foreach ( $queue_items as $item ) {
 			$items_by_url[ $item->url ] = $item;
 		}
@@ -288,9 +325,13 @@ final class ExportManager {
 
 	/**
 	 * Process an already-fetched result for a queue item.
+	 *
+	 * @param ExportJob   $job        The export job.
+	 * @param object      $queue_item Queue row object with url and id properties.
+	 * @param FetchResult $result     The fetch result for the queue item's URL.
 	 */
 	private function process_fetched_result( ExportJob $job, object $queue_item, FetchResult $result ): void {
-		$this->logger->info( 'Processing URL', [ 'url' => $queue_item->url ] );
+		$this->logger->info( 'Processing URL', array( 'url' => $queue_item->url ) );
 
 		if ( ! $result->is_success() ) {
 			$this->crawl_queue->mark_failed(
@@ -308,7 +349,7 @@ final class ExportManager {
 			$stored_hash = $this->content_hash_store->get_hash( $queue_item->url );
 
 			if ( null !== $stored_hash && $stored_hash === $new_hash ) {
-				$this->logger->info( 'Skipping unchanged URL', [ 'url' => $queue_item->url ] );
+				$this->logger->info( 'Skipping unchanged URL', array( 'url' => $queue_item->url ) );
 				$this->crawl_queue->mark_completed(
 					(int) $queue_item->id,
 					$result->http_status,
@@ -393,6 +434,8 @@ final class ExportManager {
 	/**
 	 * Finalize an export: generate extras, update status, deploy.
 	 * Retries are handled by the caller (run_sync / BatchProcessor) before finalize is invoked.
+	 *
+	 * @param ExportJob $job The export job being finalized.
 	 */
 	public function finalize( ExportJob $job ): void {
 		// Generate extra files.
@@ -428,12 +471,15 @@ final class ExportManager {
 			$this->run_deploy( $job );
 		}
 
-		$this->logger->info( 'Export finalized', [
-			'export_id' => $job->export_id,
-			'status'    => $status,
-			'completed' => $counts['completed'],
-			'failed'    => $counts['failed'],
-		] );
+		$this->logger->info(
+			'Export finalized',
+			array(
+				'export_id' => $job->export_id,
+				'status'    => $status,
+				'completed' => $counts['completed'],
+				'failed'    => $counts['failed'],
+			)
+		);
 
 		// Compute duration for notifications.
 		$started_at = $job->started_at ? strtotime( $job->started_at ) : 0;
@@ -452,6 +498,8 @@ final class ExportManager {
 
 	/**
 	 * Cancel a running export.
+	 *
+	 * @param string $export_id The export UUID to cancel.
 	 */
 	public function cancel( string $export_id ): void {
 		$this->progress->cancel( $export_id );
@@ -481,6 +529,8 @@ final class ExportManager {
 
 	/**
 	 * Fetch the WP 404 page and save as 404.html.
+	 *
+	 * @param ExportJob $job The export job.
 	 */
 	private function generate_404_page( ExportJob $job ): void {
 		$url_404 = home_url( '/sewp-nonexistent-page-' . wp_rand() . '/' );
@@ -501,6 +551,8 @@ final class ExportManager {
 
 	/**
 	 * Copy robots.txt from the live site.
+	 *
+	 * @param ExportJob $job The export job.
 	 */
 	private function generate_robots_txt( ExportJob $job ): void {
 		$result = $this->fetcher->fetch( home_url( '/robots.txt' ) );
@@ -520,16 +572,20 @@ final class ExportManager {
 
 	/**
 	 * Generate a sitemap.xml from all completed URLs in the queue.
+	 *
+	 * @param ExportJob $job The export job.
 	 */
 	private function generate_sitemap( ExportJob $job ): void {
 		global $wpdb;
 
 		$table = $wpdb->prefix . 'sewp_crawl_queue';
-		$urls  = $wpdb->get_col( $wpdb->prepare(
-			"SELECT url FROM {$table} WHERE export_id = %s AND status = 'completed' AND content_type LIKE %s ORDER BY id ASC",
-			$job->export_id,
-			'%text/html%',
-		) );
+		$urls  = $wpdb->get_col(
+			$wpdb->prepare(
+				"SELECT url FROM {$table} WHERE export_id = %s AND status = 'completed' AND content_type LIKE %s ORDER BY id ASC",
+				$job->export_id,
+				'%text/html%',
+			)
+		);
 
 		if ( empty( $urls ) ) {
 			return;
@@ -554,11 +610,13 @@ final class ExportManager {
 		$xml .= '</urlset>' . "\n";
 
 		$this->file_writer->write_html( $job->output_dir, '/sitemap.xml', $xml );
-		$this->logger->info( 'sitemap.xml generated', [ 'urls' => count( $urls ) ] );
+		$this->logger->info( 'sitemap.xml generated', array( 'urls' => count( $urls ) ) );
 	}
 
 	/**
 	 * Write a _redirects file from user-provided content.
+	 *
+	 * @param ExportJob $job The export job.
 	 */
 	private function generate_redirects_file( ExportJob $job ): void {
 		$content = trim( (string) ( $job->settings_snapshot['redirects_content'] ?? '' ) );
@@ -573,6 +631,8 @@ final class ExportManager {
 
 	/**
 	 * Write a _headers file from user-provided content.
+	 *
+	 * @param ExportJob $job The export job.
 	 */
 	private function generate_headers_file( ExportJob $job ): void {
 		$content = trim( (string) ( $job->settings_snapshot['headers_content'] ?? '' ) );
@@ -587,6 +647,10 @@ final class ExportManager {
 
 	/**
 	 * Crawl a CSS file for nested asset references (@import, url()).
+	 *
+	 * @param string $output_dir Export output directory.
+	 * @param string $css_url    URL of the CSS file to crawl.
+	 * @param string $site_url   The WordPress site URL (no trailing slash).
 	 */
 	private function crawl_css_assets( string $output_dir, string $css_url, string $site_url ): void {
 		$result = $this->fetcher->fetch( $css_url );
@@ -619,25 +683,34 @@ final class ExportManager {
 			return $urls;
 		}
 
-		return array_values( array_filter( $urls, function ( string $url ) use ( $max_depth ): bool {
-			// Match WordPress pagination patterns: /page/N/ or /comment-page-N/
-			if ( preg_match( '#/page/(\d+)/?#', $url, $m ) ) {
-				return (int) $m[1] <= $max_depth;
-			}
-			if ( preg_match( '#/comment-page-(\d+)/?#', $url, $m ) ) {
-				return (int) $m[1] <= $max_depth;
-			}
-			// ?paged=N query parameter.
-			$query = wp_parse_url( $url, PHP_URL_QUERY ) ?? '';
-			if ( preg_match( '/(?:^|&)paged=(\d+)/', $query, $m ) ) {
-				return (int) $m[1] <= $max_depth;
-			}
-			return true;
-		} ) );
+		return array_values(
+			array_filter(
+				$urls,
+				function ( string $url ) use ( $max_depth ): bool {
+					// Match WordPress pagination patterns: /page/N/ or /comment-page-N/
+					if ( preg_match( '#/page/(\d+)/?#', $url, $m ) ) {
+						return (int) $m[1] <= $max_depth;
+					}
+					if ( preg_match( '#/comment-page-(\d+)/?#', $url, $m ) ) {
+						return (int) $m[1] <= $max_depth;
+					}
+					// ?paged=N query parameter.
+					$query = wp_parse_url( $url, PHP_URL_QUERY ) ?? '';
+					if ( preg_match( '/(?:^|&)paged=(\d+)/', $query, $m ) ) {
+						return (int) $m[1] <= $max_depth;
+					}
+					return true;
+				}
+			)
+		);
 	}
 
 	/**
 	 * Convert a full asset URL to a relative path within the output directory.
+	 *
+	 * @param string $url      The asset URL.
+	 * @param string $site_url The WordPress site URL (no trailing slash).
+	 * @return string Relative path within the output directory.
 	 */
 	private function asset_url_to_relative_path( string $url, string $site_url ): string {
 		$site_path = wp_parse_url( $site_url, PHP_URL_PATH ) ?? '';
@@ -734,6 +807,10 @@ final class ExportManager {
 
 	/**
 	 * Minify a single asset file by URL (used for CSS files discovered via crawl_css_assets).
+	 *
+	 * @param string $output_dir Export output directory.
+	 * @param string $asset_url  URL of the asset to minify.
+	 * @param string $site_url   The WordPress site URL (no trailing slash).
 	 */
 	private function maybe_minify_single_asset( string $output_dir, string $asset_url, string $site_url ): void {
 		if ( null === $this->asset_minifier ) {
@@ -759,6 +836,12 @@ final class ExportManager {
 		}
 	}
 
+	/**
+	 * Determine whether a URL points to a CSS file (by path extension).
+	 *
+	 * @param string $url The URL to check.
+	 * @return bool True if the URL's path ends in ".css".
+	 */
 	private function is_css_url( string $url ): bool {
 		$path = wp_parse_url( $url, PHP_URL_PATH ) ?? '';
 		return str_ends_with( strtolower( $path ), '.css' );
@@ -766,13 +849,15 @@ final class ExportManager {
 
 	/**
 	 * Run post-export deploy if configured.
+	 *
+	 * @param ExportJob $job The completed export job.
 	 */
 	private function run_deploy( ExportJob $job ): void {
 		if ( null !== $this->deployer_factory ) {
 			$deployer = $this->deployer_factory->create();
 
 			if ( null !== $deployer ) {
-				$this->logger->info( 'Deploy: starting', [ 'method' => $deployer->label() ] );
+				$this->logger->info( 'Deploy: starting', array( 'method' => $deployer->label() ) );
 				$result = $deployer->deploy( $job );
 
 				if ( $result->success ) {
@@ -791,12 +876,22 @@ final class ExportManager {
 		do_action( 'sewp_after_export', $job );
 	}
 
+	/**
+	 * Insert the initial export log row for a newly started export.
+	 *
+	 * @param string $export_id  The export UUID.
+	 * @param string $output_dir Export output directory.
+	 * @param string $url_mode   'relative' or 'absolute'.
+	 * @param string $base_url   Custom base URL (for absolute mode).
+	 * @param int    $total      Total number of URLs enqueued.
+	 * @param array  $settings   Full settings snapshot to store with the log row.
+	 */
 	private function save_export_log( string $export_id, string $output_dir, string $url_mode, string $base_url, int $total, array $settings ): void {
 		global $wpdb;
 
 		$wpdb->insert(
 			$wpdb->prefix . 'sewp_export_log',
-			[
+			array(
 				'export_id'         => $export_id,
 				'status'            => 'running',
 				'output_dir'        => $output_dir,
@@ -805,38 +900,51 @@ final class ExportManager {
 				'total_urls'        => $total,
 				'started_at'        => current_time( 'mysql' ),
 				'settings_snapshot' => wp_json_encode( $settings ),
-			],
-			[ '%s', '%s', '%s', '%s', '%s', '%d', '%s', '%s' ],
+			),
+			array( '%s', '%s', '%s', '%s', '%s', '%d', '%s', '%s' ),
 		);
 	}
 
+	/**
+	 * Update the export log row once an export has finished.
+	 *
+	 * @param string $export_id The export UUID.
+	 * @param string $status    'completed' or 'failed'.
+	 * @param array  $counts    {total, completed, failed}.
+	 */
 	private function update_export_log( string $export_id, string $status, array $counts ): void {
 		global $wpdb;
 
 		$wpdb->update(
 			$wpdb->prefix . 'sewp_export_log',
-			[
+			array(
 				'status'         => $status,
 				'total_urls'     => $counts['total'],
 				'completed_urls' => $counts['completed'],
 				'failed_urls'    => $counts['failed'],
 				'completed_at'   => current_time( 'mysql' ),
-			],
-			[ 'export_id' => $export_id ],
-			[ '%s', '%d', '%d', '%d', '%s' ],
-			[ '%s' ],
+			),
+			array( 'export_id' => $export_id ),
+			array( '%s', '%d', '%d', '%d', '%s' ),
+			array( '%s' ),
 		);
 	}
 
+	/**
+	 * Persist the size report for an export onto its export log row.
+	 *
+	 * @param string $export_id   The export UUID.
+	 * @param array  $size_report File sizes by category, as returned by SizeReport::scan().
+	 */
 	private function save_size_report( string $export_id, array $size_report ): void {
 		global $wpdb;
 
 		$wpdb->update(
 			$wpdb->prefix . 'sewp_export_log',
-			[ 'size_report' => wp_json_encode( $size_report ) ],
-			[ 'export_id' => $export_id ],
-			[ '%s' ],
-			[ '%s' ],
+			array( 'size_report' => wp_json_encode( $size_report ) ),
+			array( 'export_id' => $export_id ),
+			array( '%s' ),
+			array( '%s' ),
 		);
 	}
 }

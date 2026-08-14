@@ -1,39 +1,71 @@
 <?php
+/**
+ * Registers and renders the plugin's WordPress admin page.
+ *
+ * @package StaticExportWP
+ */
 
 declare(strict_types=1);
 
 namespace StaticExportWP\Admin;
 
+/**
+ * Registers the admin menu page, enqueues its assets, and handles the
+ * export ZIP download request.
+ */
 final class AdminPage {
 
+	/**
+	 * Register the WordPress hooks used by the admin page.
+	 *
+	 * @return void
+	 */
 	public function register(): void {
-		add_action( 'admin_menu', [ $this, 'add_menu_page' ] );
-		add_action( 'admin_post_sewp_download_export', [ $this, 'handle_download' ] );
+		add_action( 'admin_menu', array( $this, 'add_menu_page' ) );
+		add_action( 'admin_post_sewp_download_export', array( $this, 'handle_download' ) );
 	}
 
+	/**
+	 * Add the plugin's top-level admin menu page and enqueue its assets when displayed.
+	 *
+	 * @return void
+	 */
 	public function add_menu_page(): void {
 		$hook = add_menu_page(
 			__( 'Static Export', 'static-export-wp' ),
 			__( 'Static Export', 'static-export-wp' ),
 			'manage_options',
 			'static-export-wp',
-			[ $this, 'render' ],
+			array( $this, 'render' ),
 			'dashicons-upload',
 			80,
 		);
 
-		add_action( "admin_enqueue_scripts", function ( string $current_hook ) use ( $hook ) {
-			if ( $current_hook !== $hook ) {
-				return;
+		add_action(
+			'admin_enqueue_scripts',
+			function ( string $current_hook ) use ( $hook ) {
+				if ( $current_hook !== $hook ) {
+					return;
+				}
+				$this->enqueue_assets();
 			}
-			$this->enqueue_assets();
-		} );
+		);
 	}
 
+	/**
+	 * Render the admin page markup (a mount point for the JS-driven UI).
+	 *
+	 * @return void
+	 */
 	public function render(): void {
 		echo '<div id="sewp-admin-root"></div>';
 	}
 
+	/**
+	 * Enqueue and localize the admin page's JavaScript and CSS assets.
+	 *
+	 * @return void
+	 */
 	private function enqueue_assets(): void {
 		$asset_file = SEWP_PATH . 'build/admin.asset.php';
 
@@ -46,7 +78,7 @@ final class AdminPage {
 		wp_enqueue_script(
 			'sewp-admin',
 			SEWP_URL . 'build/admin.js',
-			$asset['dependencies'] ?? [],
+			$asset['dependencies'] ?? array(),
 			$asset['version'] ?? SEWP_VERSION,
 			true,
 		);
@@ -54,18 +86,22 @@ final class AdminPage {
 		wp_enqueue_style(
 			'sewp-admin',
 			SEWP_URL . 'build/admin.css',
-			[ 'wp-components' ],
+			array( 'wp-components' ),
 			$asset['version'] ?? SEWP_VERSION,
 		);
 
-		wp_localize_script( 'sewp-admin', 'sewpConfig', [
-			'restUrl'     => rest_url( 'sewp/v1/' ),
-			'nonce'       => wp_create_nonce( 'wp_rest' ),
-			'version'     => SEWP_VERSION,
-			'adminUrl'    => admin_url(),
-			'downloadUrl' => wp_nonce_url( admin_url( 'admin-post.php?action=sewp_download_export' ), 'sewp_download_export' ),
-			'previewUrl'  => $this->get_preview_url(),
-		] );
+		wp_localize_script(
+			'sewp-admin',
+			'sewpConfig',
+			array(
+				'restUrl'     => rest_url( 'sewp/v1/' ),
+				'nonce'       => wp_create_nonce( 'wp_rest' ),
+				'version'     => SEWP_VERSION,
+				'adminUrl'    => admin_url(),
+				'downloadUrl' => wp_nonce_url( admin_url( 'admin-post.php?action=sewp_download_export' ), 'sewp_download_export' ),
+				'previewUrl'  => $this->get_preview_url(),
+			)
+		);
 	}
 
 	/**
@@ -130,6 +166,7 @@ final class AdminPage {
 	/**
 	 * Create a ZIP from the output directory.
 	 *
+	 * @param string $source_dir Directory whose contents should be zipped.
 	 * @return string|false Path to the temporary ZIP file, or false on failure.
 	 */
 	private function create_zip( string $source_dir ): string|false {

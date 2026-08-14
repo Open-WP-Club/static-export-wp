@@ -1,4 +1,9 @@
 <?php
+/**
+ * Performs parallel HTTP fetches for the crawler.
+ *
+ * @package StaticExportWP
+ */
 
 declare(strict_types=1);
 
@@ -11,6 +16,11 @@ use StaticExportWP\Core\Settings;
  */
 final class BatchFetcher {
 
+	/**
+	 * Create the batch fetcher.
+	 *
+	 * @param Settings $settings Plugin settings used to control fetch behaviour (e.g. timeout).
+	 */
 	public function __construct(
 		private readonly Settings $settings,
 	) {}
@@ -23,36 +33,36 @@ final class BatchFetcher {
 	 */
 	public function fetch_batch( array $urls ): array {
 		if ( empty( $urls ) ) {
-			return [];
+			return array();
 		}
 
 		$timeout = (int) $this->settings->get( 'timeout', 30 );
-		$options = [
+		$options = array(
 			'timeout'          => $timeout,
 			'connect_timeout'  => min( $timeout, 10 ),
 			'follow_redirects' => true,
 			'redirects'        => 5,
 			'verify'           => (bool) apply_filters( 'sewp_sslverify', true ),
-		];
+		);
 
-		$headers = [
+		$headers = array(
 			'User-Agent' => 'StaticExportWP/' . SEWP_VERSION,
-		];
+		);
 
 		// Build requests array for Requests::request_multiple().
-		$requests = [];
+		$requests = array();
 		foreach ( $urls as $url ) {
-			$requests[ $url ] = [
+			$requests[ $url ] = array(
 				'url'     => $url,
 				'type'    => \WpOrg\Requests\Requests::GET,
 				'headers' => $headers,
 				'options' => $options,
-			];
+			);
 		}
 
 		$responses = \WpOrg\Requests\Requests::request_multiple( $requests );
 
-		$results = [];
+		$results = array();
 		foreach ( $responses as $url => $response ) {
 			if ( $response instanceof \WpOrg\Requests\Exception ) {
 				$results[ $url ] = new FetchResult(
@@ -60,7 +70,7 @@ final class BatchFetcher {
 					http_status: 0,
 					content_type: '',
 					body: '',
-					headers: [],
+					headers: array(),
 					error: $response->getMessage(),
 				);
 				continue;

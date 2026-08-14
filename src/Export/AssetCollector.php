@@ -1,9 +1,19 @@
 <?php
+/**
+ * Extracts asset URLs (stylesheets, scripts, images, fonts) referenced from HTML or CSS.
+ *
+ * @package StaticExportWP
+ */
 
 declare(strict_types=1);
 
 namespace StaticExportWP\Export;
 
+/**
+ * Scans HTML documents and CSS content for asset URLs (link/script/img/source/video
+ * elements, srcset attributes, and CSS url() references), filtering the results to
+ * only those belonging to the current site.
+ */
 final class AssetCollector {
 
 	/**
@@ -31,7 +41,7 @@ final class AssetCollector {
 	 * @return string[] Array of asset URLs.
 	 */
 	public function collect_from_doc( \DOMDocument $doc, string $site_url, string $html = '' ): array {
-		$assets = [];
+		$assets = array();
 
 		$site_url = untrailingslashit( $site_url );
 
@@ -100,10 +110,13 @@ final class AssetCollector {
 	/**
 	 * Extract asset URLs from a CSS file body.
 	 *
+	 * @param string $css      The CSS file content to scan.
+	 * @param string $css_url  URL of the CSS file (used to resolve relative url() references).
+	 * @param string $site_url The site URL for filtering.
 	 * @return string[]
 	 */
 	public function collect_from_css( string $css, string $css_url, string $site_url ): array {
-		$assets  = [];
+		$assets  = array();
 		$css_dir = dirname( $css_url ) . '/';
 
 		if ( preg_match_all( '/url\(\s*[\'"]?([^\'")]+)[\'"]?\s*\)/i', $css, $matches ) ) {
@@ -127,10 +140,11 @@ final class AssetCollector {
 	/**
 	 * Parse srcset attribute values.
 	 *
+	 * @param string $srcset The srcset attribute value (comma-separated URL/descriptor pairs).
 	 * @return string[]
 	 */
 	private function parse_srcset( string $srcset ): array {
-		$urls = [];
+		$urls = array();
 		foreach ( explode( ',', $srcset ) as $entry ) {
 			$parts = preg_split( '/\s+/', trim( $entry ) );
 			if ( ! empty( $parts[0] ) ) {
@@ -143,10 +157,11 @@ final class AssetCollector {
 	/**
 	 * Extract url() from inline CSS in HTML.
 	 *
+	 * @param string $html The HTML content to scan for inline url() references.
 	 * @return string[]
 	 */
 	private function extract_css_urls( string $html ): array {
-		$urls = [];
+		$urls = array();
 		if ( preg_match_all( '/url\(\s*[\'"]?([^\'")]+)[\'"]?\s*\)/i', $html, $matches ) ) {
 			foreach ( $matches[1] as $url ) {
 				if ( ! str_starts_with( $url, 'data:' ) ) {
@@ -160,13 +175,14 @@ final class AssetCollector {
 	/**
 	 * Filter to only site assets (not external CDN, etc.).
 	 *
-	 * @param string[] $assets
+	 * @param string[] $assets   Candidate asset URLs.
+	 * @param string   $site_url The site URL for filtering.
 	 * @return string[]
 	 */
 	private function filter_assets( array $assets, string $site_url ): array {
 		$site_url = untrailingslashit( $site_url );
-		$result   = [];
-		$seen     = [];
+		$result   = array();
+		$seen     = array();
 
 		foreach ( $assets as $url ) {
 			// Make absolute.

@@ -1,13 +1,26 @@
 <?php
+/**
+ * Defines and creates the plugin's custom database tables.
+ *
+ * @package StaticExportWP
+ */
 
 declare(strict_types=1);
 
 namespace StaticExportWP\Core;
 
+/**
+ * Manages the plugin's custom database schema, including the crawl queue,
+ * export log, and content hash tables.
+ */
 final class Schema {
 
 	public const string DB_VERSION = '1.3.0';
 
+	/**
+	 * Create (or update) the plugin's custom database tables via dbDelta
+	 * and record the installed schema version.
+	 */
 	public static function create_tables(): void {
 		global $wpdb;
 

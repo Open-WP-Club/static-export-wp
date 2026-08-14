@@ -1,4 +1,9 @@
 <?php
+/**
+ * Performs single-URL HTTP fetches for the crawler.
+ *
+ * @package StaticExportWP
+ */
 
 declare(strict_types=1);
 
@@ -6,21 +11,35 @@ namespace StaticExportWP\Crawler;
 
 use StaticExportWP\Core\Settings;
 
+/**
+ * Fetches a single URL over HTTP using WordPress's HTTP API.
+ */
 final class Fetcher {
 
+	/**
+	 * Create the fetcher.
+	 *
+	 * @param Settings $settings Plugin settings used to control fetch behaviour (e.g. timeout).
+	 */
 	public function __construct(
 		private readonly Settings $settings,
 	) {}
 
+	/**
+	 * Fetch a single URL and wrap the outcome in a FetchResult.
+	 *
+	 * @param string $url The URL to fetch.
+	 * @return FetchResult The result of the fetch, including status, body and any error.
+	 */
 	public function fetch( string $url ): FetchResult {
-		$args = [
+		$args = array(
 			'timeout'     => $this->settings->get( 'timeout', 30 ),
 			'redirection' => 5,
 			'sslverify'   => (bool) apply_filters( 'sewp_sslverify', true ),
-			'headers'     => [
+			'headers'     => array(
 				'User-Agent' => 'StaticExportWP/' . SEWP_VERSION,
-			],
-		];
+			),
+		);
 
 		$response = wp_remote_get( $url, $args );
 
@@ -30,7 +49,7 @@ final class Fetcher {
 				http_status: 0,
 				content_type: '',
 				body: '',
-				headers: [],
+				headers: array(),
 				error: $response->get_error_message(),
 			);
 		}
@@ -48,5 +67,4 @@ final class Fetcher {
 			headers: $headers,
 		);
 	}
-
 }
